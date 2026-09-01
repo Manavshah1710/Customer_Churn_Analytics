@@ -77,26 +77,19 @@ with result_col:
     """, unsafe_allow_html=True)
 
     if submitted:
-        # ---- Build input row ----
+        # ---- Build input row using get_dummies for one-hot encoding ----
         input_data = {
             "tenure": tenure,
             "monthly_charges": monthly_charges,
-            "contract_Month-to-month": int(contract == "Month-to-month"),
-            "contract_One year": int(contract == "One year"),
-            "contract_Two year": int(contract == "Two year"),
-            "internet_service_DSL": int(internet_service == "DSL"),
-            "internet_service_Fiber optic": int(internet_service == "Fiber optic"),
-            "internet_service_No": int(internet_service == "No")
+            "contract": contract,
+            "internet_service": internet_service
         }
 
         input_df = pd.DataFrame([input_data])
+        input_df = pd.get_dummies(input_df)
 
         # ---- Align with training features ----
-        for col in FEATURE_COLS:
-            if col not in input_df.columns:
-                input_df[col] = 0
-
-        input_df = input_df[FEATURE_COLS]
+        input_df = input_df.reindex(columns=FEATURE_COLS, fill_value=0)
 
         # ---- Scale numeric features ----
         input_df[["tenure", "monthly_charges"]] = scaler.transform(

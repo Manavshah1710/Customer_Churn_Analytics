@@ -34,58 +34,40 @@ def insert_data():
     df["Total Charges"] = pd.to_numeric(df["Total Charges"], errors="coerce")
     df["Total Charges"].fillna(0, inplace=True)
 
-    # Insert into tables row-by-row
-    for _, row in df.iterrows():
+    # Insert into tables using executemany for efficiency
+    cursor.execute("DELETE FROM customers")
+    cursor.execute("DELETE FROM accounts")
+    cursor.execute("DELETE FROM services")
 
-        # Insert into CUSTOMERS table
-        cursor.execute("""
-            INSERT INTO customers (
-                customer_id, gender, senior_citizen, partner, dependents, tenure, churn
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (
-            row['CustomerID'],
-            row['Gender'],
-             1 if row['Senior Citizen'] == "Yes" else 0,
-            row['Partner'],
-            row['Dependents'],
-            row['Tenure Months'],
-            row['Churn Label']
-        ))
+    # Prepare and insert CUSTOMERS data
+    customers_data = df[['CustomerID', 'Gender', 'Senior Citizen', 'Partner', 'Dependents', 'Tenure Months', 'Churn Label']].copy()
+    customers_data['Senior Citizen'] = customers_data['Senior Citizen'].map({'Yes': 1, 'No': 0})
+    customers_tuples = [tuple(row) for row in customers_data.to_numpy()]
+    cursor.executemany("""
+        INSERT INTO customers (customer_id, gender, senior_citizen, partner, dependents, tenure, churn)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, customers_tuples)
 
-        # Insert into ACCOUNTS table
-        cursor.execute("""
-            INSERT INTO accounts (
-                customer_id, contract, paperless_billing, payment_method,
-                monthly_charges, total_charges
-            ) VALUES (?, ?, ?, ?, ?, ?)
-        """, (
-            row['CustomerID'],
-            row['Contract'],
-            row['Paperless Billing'],
-            row['Payment Method'],
-            row['Monthly Charges'],
-            row['Total Charges']
-        ))
+    # Prepare and insert ACCOUNTS data
+    accounts_data = df[['CustomerID', 'Contract', 'Paperless Billing', 'Payment Method', 'Monthly Charges', 'Total Charges']]
+    accounts_tuples = [tuple(row) for row in accounts_data.to_numpy()]
+    cursor.executemany("""
+        INSERT INTO accounts (customer_id, contract, paperless_billing, payment_method,
+                            monthly_charges, total_charges)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, accounts_tuples)
 
-        # Insert into SERVICES table
-        cursor.execute("""
-            INSERT INTO services (
-                customer_id, phone_service, multiple_lines, internet_service,
-                online_security, online_backup, device_protection,
-                tech_support, streaming_tv, streaming_movies
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            row['CustomerID'],
-            row['Phone Service'],
-            row['Multiple Lines'],
-            row['Internet Service'],
-            row['Online Security'],
-            row['Online Backup'],
-            row['Device Protection'],
-            row['Tech Support'],
-            row['Streaming TV'],
-            row['Streaming Movies']
-        ))
+    # Prepare and insert SERVICES data
+    services_data = df[['CustomerID', 'Phone Service', 'Multiple Lines', 'Internet Service',
+                       'Online Security', 'Online Backup', 'Device Protection',
+                       'Tech Support', 'Streaming TV', 'Streaming Movies']]
+    services_tuples = [tuple(row) for row in services_data.to_numpy()]
+    cursor.executemany("""
+        INSERT INTO services (customer_id, phone_service, multiple_lines, internet_service,
+                            online_security, online_backup, device_protection,
+                            tech_support, streaming_tv, streaming_movies)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, services_tuples)
 
     conn.commit()
     conn.close()

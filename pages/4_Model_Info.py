@@ -73,11 +73,7 @@ def load_model_data():
     )
 
     # Align columns EXACTLY with training
-    for col in FEATURE_COLS:
-        if col not in df_encoded.columns:
-            df_encoded[col] = 0
-
-    df_encoded = df_encoded[FEATURE_COLS]
+    df_encoded = df_encoded.reindex(columns=FEATURE_COLS, fill_value=0)
 
     # Scale numeric features (must match training)
     numeric_features = ["tenure", "monthly_charges", "total_charges"]
@@ -166,21 +162,6 @@ st.markdown("---")
 
 # -----------------------------------------
 # MODEL SUMMARY TABLE
-# -----------------------------------------
-st.markdown("## 📊 Model Evaluation Summary")
-
-summary_df = pd.DataFrame({
-    "Metric": ["AUC", "Precision", "Recall", "F1-Score"],
-    "Score": [
-        round(roc_auc, 3),
-        round(report["1"]["precision"], 3),
-        round(report["1"]["recall"], 3),
-        round(report["1"]["f1-score"], 3),
-    ]
-})
-
-st.dataframe(summary_df, use_container_width=True, hide_index=True)
-
 # -----------------------------------------
 # MODEL VALIDATION NOTES
 # -----------------------------------------
