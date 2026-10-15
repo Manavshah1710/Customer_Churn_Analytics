@@ -10,13 +10,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Folder Structure & Purpose
 - `app.py` — Streamlit multipage app entry point (navigation shell)
 - `pages/` — Streamlit pages: 1_Dashboard.py, 2_Predict_Churn.py, 3_Insights.py, 4_Model_Info.py, 5_About.py
-- `src/` — Reusable logic: `data_ingest.py` (DB creation/load), `sql_schema.sql` (DDL)
-- `models/` — ML artifacts: `churn_model.pkl`, `scaler.pkl`, `feature_columns.pkl`
-- `data/` — SQLite DB (`churn.db`); **raw/ planned for source CSV**
+- `src/` — Reusable logic:
+  - `preprocess.py` (data loading, stratified split, ColumnTransformer feature engineering)
+  - `train.py` (RandomForest training, evaluation metrics, threshold calculation)
+  - `predict.py` (cached artifact loader, predict_churn inference)
+  - `data_ingest.py` (DB creation/load), `sql_schema.sql` (DDL)
+- `models/` — ML artifacts: `churn_model.pkl`, `preprocessor.pkl` (ColumnTransformer), `metrics.json`
+- `tests/` — Test suite: `test_pipeline.py` (unit/leakage tests), `test_predict.py` (inference), `test_app.py` (Streamlit AppTest)
+- `data/` — SQLite DB (`churn.db`), raw CSV in `data/raw/`
 - `notebooks/` — EDA (`01_EDA.ipynb`), model training (`02_Model_Training.ipynb`)
 - `docs/` — `project_definition.md` (business context)
 - `.streamlit/` — Streamlit theme config
-- **Planned**: `api/` (FastAPI service), `tests/` (pytest suite), `.github/workflows/` (CI/CD)
 
 ## Tech Stack (from requirements.txt)
 - streamlit==1.32.0
@@ -26,28 +30,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - matplotlib==3.8.3
 - seaborn==0.13.2
 - joblib==1.3.2
+- imbalanced-learn==0.14.2
+- pytest==9.1.1
 
 ## Common Commands
 - **Run Streamlit**: `streamlit run app.py`
-- **Train model (planned)**: `python -m src.train` (to be implemented)
-- **Evaluate (planned)**: `python -m src.evaluate`
-- **Run API (planned)**: `uvicorn api.main:app --reload`
-- **Run tests (planned)**: `pytest tests/`
-- **Build Docker (planned)**: `docker build -t churn-2.0 .`
+- **Train model**: `python -m src.train`
+- **Run tests**: `pytest` or `python -m pytest`
 - **Initialize DB**: `python src/data_ingest.py` (creates/loads churn.db)
 
 ## Working Rules
-- **Never modify/delete** in `data/raw/` (planned for source data immutability)
-- **Ask before adding dependencies**; add to requirements.txt when approved
-- **Put reusable logic in `src/`**, not in notebooks or Streamlit pages
-- **Write pytest tests** for new code in `src/` and `api/`
-- **Never hardcode API keys**; use `.env` (ensure `.env` in `.gitignore`)
-- **Keep SHAP output format** and `/predict` response stable once defined
-- **Explain changes** after each task; keep changes small and focused
-
-## Definition of Done
-Code runs → Tests pass (if exist) → No unrelated files touched → Changes documented in task explanation.
-
-## Notes & Issues
-- **Critical**: `.venv/` and model `.pkl` files are currently tracked in git (no .gitignore). This must be fixed before adding dependencies.
-- **Ponytail review findings**: data_ingest.py uses inefficient row-wise inserts; Predict page has manual one-hot encoding; duplicate column alignment in pages 2 and 4; app.py has duplicated CSS; unused check_columns.py exists.
+- **Use .venv**: Run commands with the `.venv` python (Python 3.12, scikit-learn 1.4.2) to match serialized artifacts.
+- **Never modify/delete** in `data/raw/` (source data immutability).
+- **Put reusable logic in `src/`**, not in notebooks or Streamlit pages.
+- **Preprocess format**: `preprocessor.pkl` stores a fitted `ColumnTransformer` with `set_output(transform="pandas")`.
+- **Write pytest tests** for new features and verify `pytest` passes before committing.
+- **Never hardcode API keys**; use `.env` (ensure `.env` in `.gitignore`).

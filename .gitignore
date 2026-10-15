@@ -61,6 +61,7 @@ env/
 # IDE
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~
@@ -75,6 +76,7 @@ data/churn.db
 # Data and models - user specifically said not to ignore these
 # data/raw/*  # if you keep raw CSV outside repo
 # models/ is NOT ignored per user request
+models/archive*/
 
 # Streamlit
 .streamlit/secrets.toml
