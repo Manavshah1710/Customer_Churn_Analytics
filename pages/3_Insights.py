@@ -7,6 +7,8 @@ import pandas as pd
 import sqlite3
 import matplotlib.pyplot as plt
 
+from src import PROJECT_ROOT
+
 # -----------------------------------------
 # PAGE HEADER
 # -----------------------------------------
@@ -20,14 +22,14 @@ Deep-dive analysis into churn drivers and customer behavior patterns
 # -----------------------------------------
 # DATA LOADING (CACHED)
 # -----------------------------------------
-DB_PATH = "data/churn.db"
+DB_PATH = PROJECT_ROOT / "data" / "churn.db"
 
 @st.cache_data
 def load_insights_data():
     conn = sqlite3.connect(DB_PATH)
 
     query = """
-    SELECT 
+    SELECT
         c.customer_id,
         c.churn,
         c.tenure,
