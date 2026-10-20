@@ -46,3 +46,4 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Preprocess format**: `preprocessor.pkl` stores a fitted `ColumnTransformer` with `set_output(transform="pandas")`.
 - **Write pytest tests** for new features and verify `pytest` passes before committing.
 - **Never hardcode API keys**; use `.env` (ensure `.env` in `.gitignore`).
+- **Never commit changes to `models/*.pkl` without asking me first.** Each version adds ~30 MB to git history. Experiments must not overwrite the production artifacts.
