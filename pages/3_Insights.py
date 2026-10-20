@@ -65,7 +65,7 @@ df["tenure_bucket"] = pd.cut(
     labels=["0–6", "6–12", "12–24", "24–36", "36–48", "48–60", "60+"]
 )
 
-tenure_churn = df.groupby("tenure_bucket")["churn"].mean() * 100
+tenure_churn = df.groupby("tenure_bucket", observed=False)["churn"].mean() * 100
 
 fig, ax = plt.subplots()
 tenure_churn.plot(kind="line", marker="o", ax=ax)
