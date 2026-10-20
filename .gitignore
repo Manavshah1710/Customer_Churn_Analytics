@@ -93,6 +93,9 @@ models/archive*/
 # MLflow
 mlruns/
 mlartifacts/
+mlflow.db
+mlflow.db*
+
 
 # Evidently
 evidently_report.html
