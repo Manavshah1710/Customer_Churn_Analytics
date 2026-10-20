@@ -12,11 +12,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `pages/` — Streamlit pages: 1_Dashboard.py, 2_Predict_Churn.py, 3_Insights.py, 4_Model_Info.py, 5_About.py
 - `src/` — Reusable logic:
   - `preprocess.py` (data loading, stratified split, ColumnTransformer feature engineering)
-  - `train.py` (RandomForest training, evaluation metrics, threshold calculation)
+  - `train.py` (RandomForest training, evaluation metrics, threshold calculation, MLflow tracking)
+  - `experiments.py` (comparative benchmark experiments with 5-fold CV)
   - `predict.py` (cached artifact loader, predict_churn inference)
   - `data_ingest.py` (DB creation/load), `sql_schema.sql` (DDL)
 - `models/` — ML artifacts: `churn_model.pkl`, `preprocessor.pkl` (ColumnTransformer), `metrics.json`
-- `tests/` — Test suite: `test_pipeline.py` (unit/leakage tests), `test_predict.py` (inference), `test_app.py` (Streamlit AppTest)
+- `tests/` — Test suite: `test_pipeline.py` (unit/leakage tests), `test_predict.py` (inference), `test_app.py` (Streamlit AppTest), `test_mlflow.py` (MLflow tracking & registry)
 - `data/` — SQLite DB (`churn.db`), raw CSV in `data/raw/`
 - `notebooks/` — EDA (`01_EDA.ipynb`), model training (`02_Model_Training.ipynb`)
 - `docs/` — `project_definition.md` (business context)
@@ -32,10 +33,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - joblib==1.3.2
 - imbalanced-learn==0.14.2
 - pytest==9.1.1
+- mlflow==2.14.3
+- setuptools<71
+- sqlalchemy<2.1.0
 
 ## Common Commands
 - **Run Streamlit**: `streamlit run app.py`
-- **Train model**: `python -m src.train`
+- **Train production model**: `python -m src.train`
+- **Run benchmark experiments**: `python -m src.experiments`
+- **Open MLflow UI**: `mlflow ui --backend-store-uri sqlite:///mlflow.db`
 - **Run tests**: `pytest` or `python -m pytest`
 - **Initialize DB**: `python src/data_ingest.py` (creates/loads churn.db)
 
@@ -46,4 +52,5 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Preprocess format**: `preprocessor.pkl` stores a fitted `ColumnTransformer` with `set_output(transform="pandas")`.
 - **Write pytest tests** for new features and verify `pytest` passes before committing.
 - **Never hardcode API keys**; use `.env` (ensure `.env` in `.gitignore`).
-- **Never commit changes to `models/*.pkl` without asking me first.** Each version adds ~30 MB to git history. Experiments must not overwrite the production artifacts.
+- **Never commit changes to `models/*.pkl` without asking me first.** Each version adds ~30 MB to git history. Experiments must not overwrite the production artifacts (`promote=False`).
+- **MLflow Tracking**: Wrapped under experiment `"churn-2.0"`. Only `promote=True` runs assign the `"champion"` alias to `"churn-rf"` and update `models/`. Experiment runs (`promote=False`) are logged for comparison without touching production artifacts.
