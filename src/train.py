@@ -160,7 +160,7 @@ def train_model(
     experiment_name: str = "churn-2.0",
     run_name: Optional[str] = None,
     n_estimators: int = 300,
-    max_depth: Optional[int] = 12,
+    max_depth: Optional[int] = 8,
     model: Optional[Any] = None,
     extra_params: Optional[Dict[str, Any]] = None,
     extra_metrics: Optional[Dict[str, float]] = None,
