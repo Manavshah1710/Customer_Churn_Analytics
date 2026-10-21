@@ -191,7 +191,7 @@ st.markdown(f"""
         </div>
         <div>
             <b style="color:#64748B;">Max Tree Depth</b><br>
-            <span>{metrics.get('max_depth', 12)}</span>
+            <span>{metrics.get('max_depth', 8)}</span>
         </div>
         <div>
             <b style="color:#64748B;">Feature Encoding</b><br>
