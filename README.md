@@ -126,7 +126,7 @@ Here is a summary of all major refactoring and enhancements implemented up to th
 - **Robust Inference Handler (`transform_new`)**: Accepts single raw dictionaries, series, or multi-row DataFrames, replaces manual one-hot encoding, and gracefully handles unseen/rare categories without crashing.
 
 ### 3. Model Training, Calibration & Artifact Bundling (`src/train.py`)
-- **Balanced Class Weighting**: Re-trained Random Forest with `class_weight="balanced"`, `n_estimators=300`, and `max_depth=12` to dramatically boost recall on churners without synthetic artifacts.
+- **Balanced Class Weighting**: Re-trained Random Forest with `class_weight="balanced"`, `n_estimators=300`, and `max_depth=8` to dramatically boost recall on churners without synthetic artifacts.
 - **Optional SMOTE Resampling**: Added `--smote` flag for comparative training experiments.
 - **Automated Metric Serialization**: Held-out evaluation metrics, confusion matrix, and percentile thresholds are automatically saved to `models/metrics.json`.
 - **Top 10% Decile Capture**: Implemented rank-order evaluation measuring how many actual churners are caught within the top 10% highest-risk predictions (capturing **28.61%** of all churners in the first decile).
@@ -156,27 +156,27 @@ Evaluated on an **untouched holdout test set** (20% stratified split = 1,409 cus
 
 | Metric | Score | Description / Significance |
 | :--- | :--- | :--- |
-| **ROC-AUC** | **0.8468** | Strong discriminatory ability across decision thresholds |
-| **Recall (Class 1)** | **0.6604 (66.0%)** | Successfully detects 2 out of every 3 churners |
-| **Precision (Class 1)** | **0.5744 (57.4%)** | 57.4% of flagged customers actually churn |
-| **F1-Score (Class 1)**| **0.6144** | Balanced harmonic mean optimized for churn operations |
-| **Overall Accuracy** | **0.7800 (78.0%)** | Balanced classification accuracy |
-| **Top 10% Decile Capture** | **28.61%** | 107 of 374 churners are captured in the top 10% risk group |
+| **ROC-AUC** | **0.8513** | Strong discriminatory ability across decision thresholds |
+| **Recall (Class 1)** | **0.7594 (75.9%)** | Successfully detects 3 out of every 4 churners |
+| **Precision (Class 1)** | **0.5369 (53.7%)** | 53.7% of flagged customers actually churn |
+| **F1-Score (Class 1)**| **0.6290** | Balanced harmonic mean optimized for churn operations |
+| **Overall Accuracy** | **0.7622 (76.2%)** | Balanced classification accuracy |
+| **Top 10% Decile Capture** | **28.07%** | 105 of 374 churners are captured in the top 10% risk group |
 
 ### Test Confusion Matrix
 
 ```
                           Predicted Retained (0)    Predicted Churned (1)
- Actual Retained (0)               852                       183
- Actual Churned  (1)               127                       247
+ Actual Retained (0)               790                       245
+ Actual Churned  (1)                90                       284
 ```
 
 ### Risk Stratification Cutoffs
 
 Instead of an arbitrary 0.50 threshold, risk tiers are derived from the model's empirical test-set distribution:
-- 🚨 **High Risk Tier (Top 10% cutoff / P90)**: $\ge 80.14\%$ probability
-- ⚠️ **Moderate Risk Tier (Top 30% cutoff / P70)**: $\ge 50.83\%$ probability
-- ✅ **Low Risk Tier**: $< 50.83\%$ probability
+- 🚨 **High Risk Tier (Top 10% cutoff / P90)**: $\ge 81.54\%$ probability
+- ⚠️ **Moderate Risk Tier (Top 30% cutoff / P70)**: $\ge 61.00\%$ probability
+- ✅ **Low Risk Tier**: $< 61.00\%$ probability
 
 ---
 
