@@ -15,7 +15,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-NUMERIC_COLUMNS: List[str] = ["tenure", "monthly_charges", "total_charges"]
+NUMERIC_COLUMNS: List[str] = ["tenure", "monthly_charges", "total_charges", "senior_citizen"]
 
 
 def load_data(db_path: str = "data/churn.db") -> pd.DataFrame:
