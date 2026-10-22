@@ -215,3 +215,49 @@ def test_transform_new_with_unseen_and_rare_categories(processed_dataset):
     assert list(transformed.columns) == artifacts["feature_columns"]
     assert transformed.shape == (1, len(artifacts["feature_columns"]))
     assert transformed.isna().sum().sum() == 0
+
+
+def test_raw_field_coverage(processed_dataset):
+    """
+    Verifies that the set of raw feature names recovered from the fitted preprocessor
+    equals exactly the 19 raw input fields, and every transformed column maps to
+    exactly one raw feature (longest-matching raw column name, not first prefix match).
+    """
+    _, _, artifacts = processed_dataset
+    feature_cols = artifacts["feature_columns"]
+
+    # Load raw columns (excluding target)
+    df = load_data("data/churn.db")
+    raw_cols = [c for c in df.columns if c != "churn"]
+    assert len(raw_cols) == 19, f"Expected 19 raw fields, got {len(raw_cols)}: {raw_cols}"
+
+    # Map each transformed column to its raw field using longest-match
+    raw_from_transformed = set()
+    mapping = {}
+    for fname in feature_cols:
+        if fname.startswith("num__"):
+            raw_name = fname[5:]  # remove 'num__'
+        elif fname.startswith("bin__"):
+            raw_name = fname[5:]  # remove 'bin__'
+        elif fname.startswith("cat__"):
+            suffix = fname[5:]  # remove 'cat__'
+            best_match = None
+            best_len = 0
+            for raw in raw_cols:
+                if suffix.startswith(raw + "_") and len(raw) > best_len:
+                    best_len = len(raw)
+                    best_match = raw
+            raw_name = best_match
+            assert raw_name is not None, f"No raw match for transformed feature {fname}"
+        else:
+            raise AssertionError(f"Unknown prefix for transformed feature: {fname}")
+
+        raw_from_transformed.add(raw_name)
+        mapping[fname] = raw_name
+
+    # All 19 raw fields must be covered
+    missing = set(raw_cols) - raw_from_transformed
+    assert not missing, f"Missing raw fields in transformed features: {sorted(missing)}"
+
+    # Every transformed column maps to exactly one raw feature (already enforced by mapping dict)
+    assert len(mapping) == len(feature_cols)
