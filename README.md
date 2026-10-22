@@ -154,29 +154,31 @@ Here is a summary of all major refactoring and enhancements implemented up to th
 
 Evaluated on an **untouched holdout test set** (20% stratified split = 1,409 customers: 1,035 retained, 374 churned):
 
+**Model: Random Forest (class_weight='balanced', n_estimators=300, max_depth=8, 45 features including senior_citizen)**
+
 | Metric | Score | Description / Significance |
 | :--- | :--- | :--- |
-| **ROC-AUC** | **0.8513** | Strong discriminatory ability across decision thresholds |
-| **Recall (Class 1)** | **0.7594 (75.9%)** | Successfully detects 3 out of every 4 churners |
-| **Precision (Class 1)** | **0.5369 (53.7%)** | 53.7% of flagged customers actually churn |
-| **F1-Score (Class 1)**| **0.6290** | Balanced harmonic mean optimized for churn operations |
+| **ROC-AUC** | **0.8512** | Strong discriminatory ability across decision thresholds |
+| **Recall (Class 1)** | **0.7647 (76.5%)** | Successfully detects 3 out of every 4 churners |
+| **Precision (Class 1)** | **0.5366 (53.7%)** | 53.7% of flagged customers actually churn |
+| **F1-Score (Class 1)**| **0.6307** | Balanced harmonic mean optimized for churn operations |
 | **Overall Accuracy** | **0.7622 (76.2%)** | Balanced classification accuracy |
-| **Top 10% Decile Capture** | **28.07%** | 105 of 374 churners are captured in the top 10% risk group |
+| **Top 10% Decile Capture** | **28.61%** | 107 of 374 churners are captured in the top 10% risk group |
 
 ### Test Confusion Matrix
 
 ```
                           Predicted Retained (0)    Predicted Churned (1)
- Actual Retained (0)               790                       245
- Actual Churned  (1)                90                       284
+ Actual Retained (0)               788                       247
+ Actual Churned  (1)                88                       286
 ```
 
 ### Risk Stratification Cutoffs
 
 Instead of an arbitrary 0.50 threshold, risk tiers are derived from the model's empirical test-set distribution:
-- 🚨 **High Risk Tier (Top 10% cutoff / P90)**: $\ge 81.54\%$ probability
-- ⚠️ **Moderate Risk Tier (Top 30% cutoff / P70)**: $\ge 61.00\%$ probability
-- ✅ **Low Risk Tier**: $< 61.00\%$ probability
+- 🚨 **High Risk Tier (Top 10% cutoff / P90)**: $\ge 81.80\%$ probability
+- ⚠️ **Moderate Risk Tier (Top 30% cutoff / P70)**: $\ge 60.70\%$ probability
+- ✅ **Low Risk Tier**: $< 60.70\%$ probability
 
 ---
 
