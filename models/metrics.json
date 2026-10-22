@@ -1,26 +1,26 @@
 {
-    "auc": 0.8513,
-    "precision": 0.5369,
-    "recall": 0.7594,
-    "f1": 0.629,
+    "auc": 0.8512,
+    "precision": 0.5366,
+    "recall": 0.7647,
+    "f1": 0.6307,
     "accuracy": 0.7622,
     "confusion_matrix": [
         [
-            790,
-            245
+            788,
+            247
         ],
         [
-            90,
-            284
+            88,
+            286
         ]
     ],
-    "top_10_decile_capture_rate": 28.07,
-    "churners_caught_in_top_10": 105,
+    "top_10_decile_capture_rate": 28.61,
+    "churners_caught_in_top_10": 107,
     "total_churners_in_test": 374,
     "test_support_0": 1035,
     "test_support_1": 374,
-    "threshold_high_risk": 0.8154,
-    "threshold_moderate_risk": 0.61,
+    "threshold_high_risk": 0.818,
+    "threshold_moderate_risk": 0.607,
     "model_type": "rf_balanced",
     "n_estimators": 300,
     "max_depth": 8,
