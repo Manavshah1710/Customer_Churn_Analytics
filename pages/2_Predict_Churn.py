@@ -5,11 +5,16 @@
 import json
 from pathlib import Path
 
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import streamlit as st
 
 from src import PROJECT_ROOT
 from src.predict import load_artifacts, predict_churn
+from src.explain import explain_customer
 
 # -----------------------------------------
 # PAGE HEADER
@@ -198,6 +203,43 @@ with result_col:
             • Moderate Risk (Top 30% test cutoff): &ge; <b>{threshold_moderate * 100:.1f}%</b>
         </div>
         """, unsafe_allow_html=True)
+
+        st.markdown("---")
+
+        # SHAP Explanation — Horizontal Bar Chart
+        st.markdown("### 🔍 Why this score? (Top risk drivers)")
+        try:
+            explanation = explain_customer(raw_customer_dict, top_k=8)
+            reasons = explanation["reasons"]
+
+            # Build horizontal bar chart
+            features = [r["feature"].replace("_", " ").title() for r in reasons]
+            shap_vals = [r["shap_value"] for r in reasons]
+            colors = ["#DC2626" if r["direction"] == "increases_risk" else "#059669" for r in reasons]
+
+            fig, ax = plt.subplots(figsize=(7, 3.5))
+            y_pos = np.arange(len(features))[::-1]  # reverse for top-to-bottom
+            ax.barh(y_pos, shap_vals[::-1], color=colors[::-1], edgecolor="white", height=0.6)
+            ax.set_yticks(y_pos)
+            ax.set_yticklabels(features[::-1], fontsize=9)
+            ax.axvline(x=0, color="#94A3B8", linewidth=0.8)
+            ax.set_xlabel("SHAP value (impact on churn probability)", fontsize=9)
+            ax.set_title("Feature contributions to this prediction", fontsize=10, weight="bold")
+            ax.grid(axis="x", linestyle="--", alpha=0.4)
+            plt.tight_layout()
+            st.pyplot(fig)
+            plt.close(fig)
+
+            # Legend
+            st.markdown("""
+            <div style="font-size:0.8rem; color:#6B7280; margin-top:4px;">
+                <span style="color:#DC2626;">■</span> Increases churn risk &nbsp;&nbsp;
+                <span style="color:#059669;">■</span> Decreases churn risk
+            </div>
+            """, unsafe_allow_html=True)
+
+        except Exception as e:
+            st.caption(f"SHAP explanation unavailable: {e}")
 
         st.markdown("---")
 

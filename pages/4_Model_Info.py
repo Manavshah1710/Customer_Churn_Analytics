@@ -5,6 +5,8 @@
 import json
 from pathlib import Path
 
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -12,6 +14,7 @@ import streamlit as st
 
 from src import PROJECT_ROOT
 from src.predict import load_artifacts
+from src.explain import global_importance
 
 # -----------------------------------------
 # PAGE HEADER
@@ -138,29 +141,31 @@ with cm_col:
     )
 
 with fi_col:
-    st.markdown("#### 🔍 Global feature importance (impurity-based)")
+    st.markdown("#### 🔍 Global feature importance (mean |SHAP|)")
 
-    feature_names = preprocessor.get("feature_columns", [])
-    if hasattr(model, "feature_importances_") and len(feature_names) == len(model.feature_importances_):
-        importances = model.feature_importances_
-        feat_df = pd.DataFrame({
-            "Feature": feature_names,
-            "Importance": importances,
-        }).sort_values(by="Importance", ascending=False).head(10)
+    try:
+        global_imp = global_importance(sample_size=300)
+        top8 = global_imp[:8]
+
+        features = [item["feature"].replace("_", " ").title() for item in top8]
+        values = [item["mean_abs_shap"] for item in top8]
 
         fig, ax = plt.subplots(figsize=(6, 3.8))
         ax.barh(
-            feat_df["Feature"][::-1],
-            feat_df["Importance"][::-1],
+            features[::-1],
+            values[::-1],
             color="#4F46E5",
         )
-        ax.set_xlabel("Mean Impurity Decrease", fontsize=9)
-        ax.set_title("Top 10 Most Predictive Features", fontsize=10, weight="bold")
+        ax.set_xlabel("Mean |SHAP value|", fontsize=9)
+        ax.set_title("Top 8 Features by Mean |SHAP|", fontsize=10, weight="bold")
         ax.grid(axis="x", linestyle="--", alpha=0.5)
         plt.tight_layout()
         st.pyplot(fig)
-    else:
-        st.info("Feature importance data is unavailable for this model.")
+        plt.close(fig)
+
+        st.caption("Mean absolute SHAP value over 300 test samples. Higher = more impact on churn probability.")
+    except Exception as e:
+        st.info(f"SHAP global importance unavailable: {e}")
 
 st.markdown("---")
 

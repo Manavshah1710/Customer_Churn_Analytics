@@ -53,4 +53,71 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Write pytest tests** for new features and verify `pytest` passes before committing.
 - **Never hardcode API keys**; use `.env` (ensure `.env` in `.gitignore`).
 - **Never commit changes to `models/*.pkl` without asking me first.** Each version adds ~30 MB to git history. Experiments must not overwrite the production artifacts (`promote=False`).
-- **MLflow Tracking**: Wrapped under experiment `"churn-2.0"`. Only `promote=True` runs assign the `"champion"` alias to `"churn-rf"` and update `models/`. Experiment runs (`promote=False`) are logged for comparison without touching production artifacts.
+- **MLflow Tracking**: Wrapped under experiment `"churn-2.0"`. Only `promote=True` runs assign the `"champion"` alias to `"churn-rf"` and update `models/`. Experiment runs (`promote=False`) are logged for comparison without touching production artifacts.
+---
+
+## SHAP Explainability — `explain_customer` Schema
+
+The `src/explain.py` module provides `explain_customer(raw_input: dict, top_k: int = 5) -> dict`.
+
+### Input
+`raw_input`: Dictionary with all 19 raw feature keys:
+- **demographics**: `gender` (str), `senior_citizen` (0/1), `partner` (str), `dependents` (str)
+- **account**: `tenure` (int), `contract` (str), `paperless_billing` (str), `payment_method` (str), `monthly_charges` (float), `total_charges` (float)
+- **services**: `phone_service` (str), `multiple_lines` (str), `internet_service` (str), `online_security` (str), `online_backup` (str), `device_protection` (str), `tech_support` (str), `streaming_tv` (str), `streaming_movies` (str)
+
+### Output Schema
+```json
+{
+  "probability": 0.8923,
+  "base_value": 0.4995,
+  "risk_level": "high",
+  "reasons": [
+    {
+      "feature": "contract",
+      "customer_value": "Month-to-month",
+      "shap_value": 0.0901,
+      "direction": "increases_risk"
+    },
+    {
+      "feature": "tenure",
+      "customer_value": 1,
+      "shap_value": 0.0735,
+      "direction": "increases_risk"
+    }
+    // ... up to top_k entries
+  ]
+}
+```
+
+- **probability**: Model's predicted churn probability for this customer
+- **base_value**: Expected model output (mean prediction over training data)
+- **risk_level**: `"high"` (≥ P90 threshold), `"moderate"` (≥ P70 threshold), `"low"` (below P70) — thresholds from `models/metrics.json`
+- **reasons**: Top `top_k` raw features by absolute SHAP value, each with:
+  - `feature`: Raw feature name (one-hot dummies summed)
+  - `customer_value`: The customer's actual value for this feature
+  - `shap_value`: Signed SHAP contribution (positive = increases churn risk)
+  - `direction`: `"increases_risk"` or `"decreases_risk"`
+
+### Functions
+- `explain_customer(raw_input, top_k=5)` → dict (schema above)
+- `global_importance(sample_size=300)` → list[{"feature", "mean_abs_shap"}]
+- `get_explainer()` → cached `shap.TreeExplainer` (lazy, never at import)
+
+### Example
+```python
+from src.explain import explain_customer
+
+customer = {
+    "gender": "Female", "senior_citizen": 0, "partner": "No", "dependents": "No",
+    "tenure": 1, "contract": "Month-to-month", "paperless_billing": "Yes",
+    "payment_method": "Electronic check", "monthly_charges": 85.0, "total_charges": 85.0,
+    "phone_service": "Yes", "multiple_lines": "No", "internet_service": "Fiber optic",
+    "online_security": "No", "online_backup": "No", "device_protection": "No",
+    "tech_support": "No", "streaming_tv": "No", "streaming_movies": "No",
+}
+
+result = explain_customer(customer)
+# result["risk_level"] == "high"
+# result["reasons"][0]["feature"] == "contract"
+```
