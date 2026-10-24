@@ -4,8 +4,9 @@ Tests for SHAP explainability module.
 
 import json
 import pytest
+import numpy as np
 
-from src.explain import explain_customer, global_importance, get_explainer, ALL_RAW_FEATURES
+from src.explain import explain_customer, global_importance, get_explainer, ALL_RAW_FEATURES, _sum_shap_by_raw_feature
 
 
 def test_explain_customer_schema():
@@ -243,3 +244,63 @@ def test_import_does_not_load_models():
     # This test passes if import succeeds without models/ access
     # The actual check is that no exception is raised at import time
     pass  # If we got here, import worked
+
+
+def test_grouped_shap_sum_matches_ungrouped():
+    """Verify grouped SHAP sum matches ungrouped (per-dummy) sum within 1e-6 for several customers."""
+    from src.explain import get_explainer, _sum_shap_by_raw_feature
+    from src.predict import load_artifacts
+    from src.preprocess import transform_new
+    from src import PROJECT_ROOT
+    import pandas as pd
+
+    model, preprocessor = load_artifacts(str(PROJECT_ROOT / "models"))
+    explainer = get_explainer()
+
+    test_customers = [
+        {
+            "gender": "Female", "senior_citizen": 0, "partner": "No", "dependents": "No",
+            "tenure": 1, "contract": "Month-to-month", "paperless_billing": "Yes",
+            "payment_method": "Electronic check", "monthly_charges": 85.0, "total_charges": 85.0,
+            "phone_service": "Yes", "multiple_lines": "No", "internet_service": "Fiber optic",
+            "online_security": "No", "online_backup": "No", "device_protection": "No",
+            "tech_support": "No", "streaming_tv": "No", "streaming_movies": "No",
+        },
+        {
+            "gender": "Male", "senior_citizen": 0, "partner": "Yes", "dependents": "Yes",
+            "tenure": 60, "contract": "Two year", "paperless_billing": "No",
+            "payment_method": "Credit card (automatic)", "monthly_charges": 60.0, "total_charges": 3600.0,
+            "phone_service": "Yes", "multiple_lines": "Yes", "internet_service": "DSL",
+            "online_security": "Yes", "online_backup": "Yes", "device_protection": "Yes",
+            "tech_support": "Yes", "streaming_tv": "No", "streaming_movies": "No",
+        },
+        {
+            "gender": "Male", "senior_citizen": 1, "partner": "No", "dependents": "No",
+            "tenure": 12, "contract": "One year", "paperless_billing": "Yes",
+            "payment_method": "Bank transfer (automatic)", "monthly_charges": 75.0, "total_charges": 900.0,
+            "phone_service": "Yes", "multiple_lines": "Yes", "internet_service": "DSL",
+            "online_security": "Yes", "online_backup": "No", "device_protection": "Yes",
+            "tech_support": "No", "streaming_tv": "Yes", "streaming_movies": "Yes",
+        },
+    ]
+
+    for customer in test_customers:
+        input_df = pd.DataFrame([customer])
+        input_proc = transform_new(input_df, preprocessor)
+        feature_names = preprocessor["preprocessor"].get_feature_names_out().tolist()
+
+        shap_values = explainer.shap_values(input_proc)
+        if shap_values.ndim == 3:
+            shap_class1 = shap_values[0, :, 1]
+        else:
+            shap_class1 = shap_values[0]
+
+        # Ungrouped sum (all per-dummy values)
+        ungrouped_sum = float(np.sum(shap_class1))
+
+        # Grouped sum
+        reasons = _sum_shap_by_raw_feature(shap_class1, feature_names, customer)
+        grouped_sum = sum(r["shap_value"] for r in reasons)
+
+        assert abs(grouped_sum - ungrouped_sum) < 1e-6, \
+            f"Grouped/ungrouped mismatch: grouped={grouped_sum}, ungrouped={ungrouped_sum}, customer={customer}"
