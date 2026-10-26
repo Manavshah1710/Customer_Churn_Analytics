@@ -15,6 +15,30 @@ import streamlit as st
 from src import PROJECT_ROOT
 from src.predict import load_artifacts, predict_churn
 from src.explain import explain_customer
+from src.schema import (
+    Gender,
+    SeniorCitizen,
+    Partner,
+    Dependents,
+    ContractType,
+    PaperlessBilling,
+    PaymentMethod,
+    PhoneService,
+    MultipleLines,
+    InternetService,
+    OnlineSecurity,
+    OnlineBackup,
+    DeviceProtection,
+    TechSupport,
+    StreamingTV,
+    StreamingMovies,
+    TENURE_MIN,
+    TENURE_MAX,
+    MONTHLY_CHARGES_MIN,
+    MONTHLY_CHARGES_MAX,
+    TOTAL_CHARGES_MIN,
+    TOTAL_CHARGES_MAX,
+)
 
 # -----------------------------------------
 # PAGE HEADER
@@ -61,12 +85,12 @@ with input_col:
         st.markdown("##### 👤 Demographics")
         demo_col1, demo_col2 = st.columns(2)
         with demo_col1:
-            gender = st.selectbox("Gender", ["Female", "Male"])
+            gender = st.selectbox("Gender", list(Gender.__args__))  # type: ignore
             senior_citizen_opt = st.selectbox("Senior Citizen", ["No", "Yes"])
             senior_citizen = 1 if senior_citizen_opt == "Yes" else 0
         with demo_col2:
-            partner = st.selectbox("Partner", ["No", "Yes"])
-            dependents = st.selectbox("Dependents", ["No", "Yes"])
+            partner = st.selectbox("Partner", list(Partner.__args__))  # type: ignore
+            dependents = st.selectbox("Dependents", list(Dependents.__args__))  # type: ignore
 
         st.markdown("---")
 
@@ -74,29 +98,24 @@ with input_col:
         st.markdown("##### 💳 Account & Billing Details")
         acc_col1, acc_col2 = st.columns(2)
         with acc_col1:
-            tenure = st.slider("Tenure (Months with Company)", min_value=0, max_value=72, value=12)
+            tenure = st.slider("Tenure (Months with Company)", min_value=TENURE_MIN, max_value=TENURE_MAX, value=12)
             contract = st.selectbox(
                 "Contract Type",
-                ["Month-to-month", "One year", "Two year"]
+                list(ContractType.__args__)  # type: ignore
             )
-            paperless_billing = st.selectbox("Paperless Billing", ["Yes", "No"])
+            paperless_billing = st.selectbox("Paperless Billing", list(PaperlessBilling.__args__))  # type: ignore
 
         with acc_col2:
             payment_method = st.selectbox(
                 "Payment Method",
-                [
-                    "Electronic check",
-                    "Mailed check",
-                    "Bank transfer (automatic)",
-                    "Credit card (automatic)",
-                ]
+                list(PaymentMethod.__args__)  # type: ignore
             )
             monthly_charges = st.number_input(
-                "Monthly Charges ($)", min_value=0.0, max_value=250.0, value=70.0, step=1.0
+                "Monthly Charges ($)", min_value=MONTHLY_CHARGES_MIN, max_value=MONTHLY_CHARGES_MAX, value=70.0, step=1.0
             )
             estimated_total = round(float(tenure * monthly_charges), 2)
             total_charges = st.number_input(
-                "Total Charges ($)", min_value=0.0, max_value=15000.0, value=estimated_total, step=10.0
+                "Total Charges ($)", min_value=TOTAL_CHARGES_MIN, max_value=TOTAL_CHARGES_MAX, value=estimated_total, step=10.0
             )
 
         st.markdown("---")
@@ -106,19 +125,19 @@ with input_col:
         serv_col1, serv_col2, serv_col3 = st.columns(3)
 
         with serv_col1:
-            phone_service = st.selectbox("Phone Service", ["Yes", "No"])
-            multiple_lines = st.selectbox("Multiple Lines", ["No", "Yes", "No phone service"])
-            internet_service = st.selectbox("Internet Service", ["Fiber optic", "DSL", "No"])
+            phone_service = st.selectbox("Phone Service", list(PhoneService.__args__))  # type: ignore
+            multiple_lines = st.selectbox("Multiple Lines", list(MultipleLines.__args__))  # type: ignore
+            internet_service = st.selectbox("Internet Service", list(InternetService.__args__))  # type: ignore
 
         with serv_col2:
-            online_security = st.selectbox("Online Security", ["No", "Yes", "No internet service"])
-            online_backup = st.selectbox("Online Backup", ["No", "Yes", "No internet service"])
-            device_protection = st.selectbox("Device Protection", ["No", "Yes", "No internet service"])
+            online_security = st.selectbox("Online Security", list(OnlineSecurity.__args__))  # type: ignore
+            online_backup = st.selectbox("Online Backup", list(OnlineBackup.__args__))  # type: ignore
+            device_protection = st.selectbox("Device Protection", list(DeviceProtection.__args__))  # type: ignore
 
         with serv_col3:
-            tech_support = st.selectbox("Tech Support", ["No", "Yes", "No internet service"])
-            streaming_tv = st.selectbox("Streaming TV", ["No", "Yes", "No internet service"])
-            streaming_movies = st.selectbox("Streaming Movies", ["No", "Yes", "No internet service"])
+            tech_support = st.selectbox("Tech Support", list(TechSupport.__args__))  # type: ignore
+            streaming_tv = st.selectbox("Streaming TV", list(StreamingTV.__args__))  # type: ignore
+            streaming_movies = st.selectbox("Streaming Movies", list(StreamingMovies.__args__))  # type: ignore
 
         st.markdown("<br>", unsafe_allow_html=True)
         submitted = st.form_submit_button("🔮 Predict Churn Risk", use_container_width=True)
