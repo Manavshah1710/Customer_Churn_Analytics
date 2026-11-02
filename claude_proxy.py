@@ -22,7 +22,7 @@ from typing import Any, Dict, List
 PORT = 8088
 
 def load_env_file(filepath: str = ".env") -> None:
-    """Load key-value pairs from .env without external dependencies."""
+    """Load only OpenRouter keys from .env, so importing this never exposes other secrets."""
     env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), filepath)
     if not os.path.exists(env_path):
         return
@@ -35,7 +35,7 @@ def load_env_file(filepath: str = ".env") -> None:
                 k, v = line.split("=", 1)
                 k = k.strip()
                 v = v.strip().strip("'\"")
-                if k and k not in os.environ:
+                if k.startswith("OPENROUTER_") and k not in os.environ:
                     os.environ[k] = v
     except Exception:
         pass

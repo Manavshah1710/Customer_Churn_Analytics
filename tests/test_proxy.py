@@ -5,8 +5,10 @@ Tests for the OpenRouter failover proxy, using a fake upstream (no network).
 import http.client
 import io
 import json
+import os
 import threading
 import urllib.error
+from unittest.mock import patch
 
 import pytest
 
@@ -113,3 +115,17 @@ def test_main_stops_without_keys(monkeypatch):
     monkeypatch.setattr(cp, "CONFIGS", [])
     with pytest.raises(SystemExit):
         cp.main()
+
+
+def test_env_loader_only_loads_openrouter_keys(tmp_path):
+    """Importing the proxy must not put ANTHROPIC_API_KEY into the test run, where it could reach the real API."""
+    env_file = tmp_path / ".env"
+    env_file.write_text("ANTHROPIC_API_KEY=fake\nOPENROUTER_API_KEY_1=fake-router\n")
+
+    with patch.dict(os.environ):
+        os.environ.pop("ANTHROPIC_API_KEY", None)
+        os.environ.pop("OPENROUTER_API_KEY_1", None)
+        cp.load_env_file(str(env_file))
+
+        assert "ANTHROPIC_API_KEY" not in os.environ
+        assert os.environ["OPENROUTER_API_KEY_1"] == "fake-router"
