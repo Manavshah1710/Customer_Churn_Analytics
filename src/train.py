@@ -187,33 +187,21 @@ def train_model(
     # Determine model configuration
     if model is None:
         model_type = "rf_smote" if use_smote else "rf_balanced"
-        if use_smote:
-            smote = SMOTE(random_state=42)
-            X_train_fit, y_train_fit = smote.fit_resample(X_train_proc, y_train)
-            model = RandomForestClassifier(
-                n_estimators=n_estimators,
-                max_depth=max_depth,
-                random_state=42,
-                n_jobs=-1,
-            )
-            model.fit(X_train_fit, y_train_fit)
-        else:
-            model = RandomForestClassifier(
-                n_estimators=n_estimators,
-                max_depth=max_depth,
-                class_weight="balanced",
-                random_state=42,
-                n_jobs=-1,
-            )
-            model.fit(X_train_proc, y_train)
+        model = RandomForestClassifier(
+            n_estimators=n_estimators,
+            max_depth=max_depth,
+            class_weight=None if use_smote else "balanced",
+            random_state=42,
+            n_jobs=-1,
+        )
     else:
         model_type = type(model).__name__
-        if use_smote:
-            smote = SMOTE(random_state=42)
-            X_train_fit, y_train_fit = smote.fit_resample(X_train_proc, y_train)
-            model.fit(X_train_fit, y_train_fit)
-        else:
-            model.fit(X_train_proc, y_train)
+
+    if use_smote:
+        X_train_fit, y_train_fit = SMOTE(random_state=42).fit_resample(X_train_proc, y_train)
+    else:
+        X_train_fit, y_train_fit = X_train_proc, y_train
+    model.fit(X_train_fit, y_train_fit)
 
     print(f"\n4. Trained model: {model_type}...")
     print("5. Evaluating on untouched test data...")

@@ -3,21 +3,19 @@
 # =========================================
 
 import json
-from pathlib import Path
 
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import streamlit as st
 
 from src import PROJECT_ROOT
 from src.predict import load_artifacts, predict_churn
 from src.explain import explain_customer
+from src.ui import apply_page_style
 from src.schema import (
     Gender,
-    SeniorCitizen,
     Partner,
     Dependents,
     ContractType,
@@ -40,13 +38,15 @@ from src.schema import (
     TOTAL_CHARGES_MAX,
 )
 
+apply_page_style()
+
 # -----------------------------------------
 # PAGE HEADER
 # -----------------------------------------
 st.markdown("""
 <h2 style="margin-bottom:4px;">🔮 Predict Customer Churn</h2>
 <p style="color:#64748b; margin-top:0;">
-Estimate customer churn risk in real time using the calibrated Random Forest model
+Estimate customer churn risk in real time using the Random Forest model
 </p>
 """, unsafe_allow_html=True)
 
@@ -113,9 +113,10 @@ with input_col:
             monthly_charges = st.number_input(
                 "Monthly Charges ($)", min_value=MONTHLY_CHARGES_MIN, max_value=MONTHLY_CHARGES_MAX, value=70.0, step=1.0
             )
-            estimated_total = round(float(tenure * monthly_charges), 2)
+            # No computed default: a default that changes resets typed values on submit
             total_charges = st.number_input(
-                "Total Charges ($)", min_value=TOTAL_CHARGES_MIN, max_value=TOTAL_CHARGES_MAX, value=estimated_total, step=10.0
+                "Total Charges ($)", min_value=TOTAL_CHARGES_MIN, max_value=TOTAL_CHARGES_MAX, value=None, step=10.0,
+                placeholder="Auto if blank", help="Left blank, this is tenure × monthly charges."
             )
 
         st.markdown("---")
@@ -149,6 +150,9 @@ with result_col:
     st.markdown("### 📊 Prediction Assessment")
 
     if submitted:
+        if total_charges is None:
+            total_charges = round(float(tenure * monthly_charges), 2)
+
         raw_customer_dict = {
             "gender": gender,
             "senior_citizen": senior_citizen,
@@ -208,7 +212,7 @@ with result_col:
         ">
             <span style="font-size:2rem;">{status_icon}</span>
             <h2 style="color:{badge_color}; margin:6px 0 2px 0;">{risk_tier}</h2>
-            <p style="color:#6B7280; font-size:0.9rem; margin:0;">Estimated Churn Probability</p>
+            <p style="color:#6B7280; font-size:0.9rem; margin:0;">Churn Risk Score</p>
             <h1 style="color:{badge_color}; margin:8px 0; font-size:2.8rem;">{churn_prob * 100:.1f}%</h1>
         </div>
         """, unsafe_allow_html=True)
@@ -242,7 +246,7 @@ with result_col:
             ax.set_yticks(y_pos)
             ax.set_yticklabels(features[::-1], fontsize=9)
             ax.axvline(x=0, color="#94A3B8", linewidth=0.8)
-            ax.set_xlabel("SHAP value (impact on churn probability)", fontsize=9)
+            ax.set_xlabel("SHAP value (impact on risk score)", fontsize=9)
             ax.set_title("Feature contributions to this prediction", fontsize=10, weight="bold")
             ax.grid(axis="x", linestyle="--", alpha=0.4)
             plt.tight_layout()

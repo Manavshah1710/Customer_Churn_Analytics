@@ -16,8 +16,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - `experiments.py` (comparative benchmark experiments with 5-fold CV)
   - `predict.py` (cached artifact loader, predict_churn inference)
   - `data_ingest.py` (DB creation/load), `sql_schema.sql` (DDL)
+  - `ui.py` (`apply_page_style()`: page config and CSS, call first on every page)
 - `models/` — ML artifacts: `churn_model.pkl`, `preprocessor.pkl` (ColumnTransformer), `metrics.json`
-- `tests/` — Test suite: `test_pipeline.py` (unit/leakage tests), `test_predict.py` (inference), `test_app.py` (Streamlit AppTest), `test_mlflow.py` (MLflow tracking & registry)
+- `tests/` — Test suite: `test_pipeline.py` (unit/leakage tests), `test_predict.py` (inference), `test_app.py` (Streamlit AppTest), `test_mlflow.py` (MLflow tracking & registry), `test_proxy.py` (failover proxy)
 - `data/` — SQLite DB (`churn.db`), raw CSV in `data/raw/`
 - `notebooks/` — EDA (`01_EDA.ipynb`), model training (`02_Model_Training.ipynb`)
 - `docs/` — `project_definition.md` (business context)
@@ -34,6 +35,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - imbalanced-learn==0.14.2
 - pytest==9.1.1
 - mlflow==2.14.3
+- shap==0.46.0
+- fastapi==0.162.0
+- uvicorn==0.54.0
+- httpx==0.28.1
 - setuptools<71
 - sqlalchemy<2.1.0
 

@@ -40,7 +40,7 @@ def insert_data():
     cursor.executemany("""
         INSERT INTO customers (customer_id, gender, senior_citizen, partner, dependents, tenure, churn)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, customers_data.to_records(index=False))
+    """, customers_data.values.tolist())  # plain Python values: SQLite stores numpy ints as bytes
 
     # Prepare and insert ACCOUNTS data
     accounts_data = df[['CustomerID', 'Contract', 'Paperless Billing', 'Payment Method', 'Monthly Charges', 'Total Charges']]
@@ -48,7 +48,7 @@ def insert_data():
         INSERT INTO accounts (customer_id, contract, paperless_billing, payment_method,
                             monthly_charges, total_charges)
         VALUES (?, ?, ?, ?, ?, ?)
-    """, accounts_data.to_records(index=False))
+    """, accounts_data.values.tolist())
 
     # Prepare and insert SERVICES data
     services_data = df[['CustomerID', 'Phone Service', 'Multiple Lines', 'Internet Service',
@@ -59,7 +59,7 @@ def insert_data():
                             online_security, online_backup, device_protection,
                             tech_support, streaming_tv, streaming_movies)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, services_data.to_records(index=False))
+    """, services_data.values.tolist())
 
     conn.commit()
     conn.close()

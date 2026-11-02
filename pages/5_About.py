@@ -4,6 +4,10 @@
 
 import streamlit as st
 
+from src.ui import apply_page_style
+
+apply_page_style()
+
 # -----------------------------------------
 # PAGE HEADER
 # -----------------------------------------
@@ -78,10 +82,10 @@ st.markdown("""
 <h3>✨ Key Features</h3>
 <ul>
 <li><b>Interactive Dashboard:</b> KPIs, churn trends, and customer segmentation</li>
-<li><b>Churn Prediction:</b> Real-time probability estimates for individual customers</li>
+<li><b>Churn Prediction:</b> Real-time risk scores for individual customers</li>
 <li><b>Business Insights:</b> Clear explanations of churn drivers</li>
 <li><b>Model Transparency:</b> ROC curve, AUC, and feature importance</li>
-<li><b>Modern UI:</b> Premium design with dark mode support</li>
+<li><b>Modern UI:</b> Premium design with a dark theme</li>
 </ul>
 </div>
 """, unsafe_allow_html=True)

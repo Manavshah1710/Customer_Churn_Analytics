@@ -7,15 +7,12 @@ import json
 import logging
 import time
 from contextlib import asynccontextmanager
-from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query
-from pydantic import ValidationError
+from fastapi import FastAPI, HTTPException, Query, Response
 
 from src import PROJECT_ROOT
-from src.predict import load_artifacts, predict_churn
+from src.predict import load_artifacts
 from src.explain import explain_customer, get_explainer
-from src.preprocess import transform_new
 from api.schemas import (
     CustomerInput,
     PredictionResponse,
@@ -110,21 +107,26 @@ def _check_artifacts():
 
 
 @app.get("/health", response_model=HealthResponse)
-def health():
-    """Health check endpoint with model metadata."""
-    m = _artifacts["metrics"]
-    artifacts_ok = _artifacts["model"] is not None and _artifacts["preprocessor"] is not None
+def health(response: Response):
+    """Health check endpoint with model metadata. Returns 503 when degraded."""
+    m = _artifacts["metrics"] or {}
+    model = _artifacts["model"]
+    artifacts_ok = model is not None and _artifacts["preprocessor"] is not None
     explainer_ok = _artifacts["explainer"] is not None and _artifacts["warmup_done"]
+    healthy = artifacts_ok and explainer_ok
+
+    if not healthy:
+        response.status_code = 503
 
     return HealthResponse(
-        status="ok" if (artifacts_ok and explainer_ok) else "degraded",
+        status="ok" if healthy else "degraded",
         artifacts_loaded=artifacts_ok,
         explainer_loaded=explainer_ok,
-        model_type=m.get("model_type", "unknown") if m else "unknown",
-        max_depth=m.get("max_depth", 0) if m else 0,
-        n_features=len(m.get("feature_names", [])) if m and m.get("feature_names") else 45,
-        n_estimators=m.get("n_estimators", 300) if m else 300,
-        class_weight=m.get("class_weight", "balanced") if m else "balanced",
+        model_type=m.get("model_type"),
+        max_depth=m.get("max_depth"),
+        n_features=model.n_features_in_ if model is not None else None,
+        n_estimators=m.get("n_estimators"),
+        class_weight=m.get("class_weight"),
     )
 
 

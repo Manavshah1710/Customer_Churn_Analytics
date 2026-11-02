@@ -5,10 +5,11 @@ Provides grouped per-customer explanations and global feature importance.
 Explainer is built lazily on first use (never at import time).
 """
 
+import json
 import sys
 from pathlib import Path
 from functools import lru_cache
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
@@ -19,7 +20,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.predict import load_artifacts
-from src.preprocess import transform_new
+from src.preprocess import load_data, split_data, transform_new
 
 
 # Raw feature to group mapping
@@ -114,6 +115,14 @@ def get_explainer():
     return shap.TreeExplainer(model)
 
 
+@lru_cache(maxsize=1)
+def _load_risk_thresholds():
+    """Cached like the model, so a running app never mixes old model with new thresholds."""
+    with open(PROJECT_ROOT / "models" / "metrics.json", "r") as f:
+        metrics = json.load(f)
+    return metrics["threshold_high_risk"], metrics["threshold_moderate_risk"]
+
+
 def explain_customer(raw_input: Dict[str, Any], top_k: int = 5) -> Dict[str, Any]:
     """
     Generate a grouped SHAP explanation for a single customer.
@@ -128,13 +137,7 @@ def explain_customer(raw_input: Dict[str, Any], top_k: int = 5) -> Dict[str, Any
     model, preprocessor = load_artifacts(str(PROJECT_ROOT / "models"))
     artifacts = preprocessor
 
-    # Get thresholds from metrics
-    import json
-    metrics_path = PROJECT_ROOT / "models" / "metrics.json"
-    with open(metrics_path, "r") as f:
-        metrics = json.load(f)
-    threshold_high = metrics["threshold_high_risk"]
-    threshold_moderate = metrics["threshold_moderate_risk"]
+    threshold_high, threshold_moderate = _load_risk_thresholds()
 
     # Transform input
     input_df = pd.DataFrame([raw_input])
@@ -185,10 +188,9 @@ def global_importance(sample_size: int = 300) -> List[Dict[str, Any]]:
     model, preprocessor = load_artifacts(str(PROJECT_ROOT / "models"))
     artifacts = preprocessor
 
-    from src.preprocess import load_data, split_data, build_features
-    df = load_data("data/churn.db")
-    X_train, X_test, y_train, y_test = split_data(df, target_col="churn", test_size=0.2, random_state=42)
-    X_train_proc, X_test_proc, _ = build_features(X_train, X_test)
+    df = load_data(str(PROJECT_ROOT / "data" / "churn.db"))
+    _, X_test, _, _ = split_data(df, target_col="churn", test_size=0.2, random_state=42)
+    X_test_proc = transform_new(X_test, artifacts)
 
     # Sample
     n = min(sample_size, len(X_test_proc))
@@ -275,7 +277,6 @@ if __name__ == "__main__":
     print(f"cold explain_customer: {cold_time*1000:.1f}ms")
     print(f"warm explain_customer: {warm_time*1000:.1f}ms")
 
-    import json
     print("\nCustomer A (high risk):")
     print(json.dumps(exp_a, indent=2))
     print("\nCustomer B (low risk):")

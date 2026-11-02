@@ -7,6 +7,11 @@ import pandas as pd
 import sqlite3
 import matplotlib.pyplot as plt
 
+from src import PROJECT_ROOT
+from src.ui import apply_page_style
+
+apply_page_style()
+
 # -----------------------------------------
 # PAGE HEADER
 # -----------------------------------------
@@ -20,7 +25,7 @@ Real-time customer churn insights and key business metrics
 # -----------------------------------------
 # DATA LOADING (CACHED)
 # -----------------------------------------
-DB_PATH = "data/churn.db"
+DB_PATH = PROJECT_ROOT / "data" / "churn.db"
 
 @st.cache_data
 def load_dashboard_data():
@@ -52,10 +57,9 @@ df = load_dashboard_data()
 # -----------------------------------------
 total_customers = df.shape[0]
 churn_rate = df["churn"].mean() * 100
-high_risk_customers = df[df["churn"] == 1].shape[0]
-
-avg_monthly_charge = df["monthly_charges"].mean()
-retention_value = high_risk_customers * avg_monthly_charge * 12
+churned = df[df["churn"] == 1]
+churned_customers = churned.shape[0]
+annual_revenue_lost = churned["monthly_charges"].sum() * 12
 
 # -----------------------------------------
 # KPI SECTION
@@ -69,10 +73,10 @@ with kpi2:
     st.metric("Churn Rate", f"{churn_rate:.1f}%")
 
 with kpi3:
-    st.metric("High-Risk Customers", f"{high_risk_customers:,}")
+    st.metric("Churned Customers", f"{churned_customers:,}")
 
 with kpi4:
-    st.metric("Retention Opportunity", f"${retention_value/1e6:.2f}M")
+    st.metric("Annual Revenue Lost", f"${annual_revenue_lost/1e6:.2f}M")
 
 st.markdown("---")
 
@@ -85,7 +89,8 @@ col1, col2 = st.columns(2)
 df["tenure_bucket"] = pd.cut(
     df["tenure"],
     bins=[0, 6, 12, 24, 36, 48, 60, 72],
-    labels=["0–6", "6–12", "12–24", "24–36", "36–48", "48–60", "60+"]
+    labels=["0–6", "6–12", "12–24", "24–36", "36–48", "48–60", "60+"],
+    include_lowest=True
 )
 
 trend = df.groupby("tenure_bucket", observed=False)["churn"].mean() * 100
@@ -164,7 +169,7 @@ st.markdown("""
 <li><b>Early churn risk:</b> Customers in their first year are most likely to churn</li>
 <li><b>Contract stability:</b> Long-term contracts significantly reduce churn</li>
 <li><b>Service quality:</b> Fiber optic users require proactive engagement</li>
-<li><b>Revenue impact:</b> High-risk customers represent major retention opportunity</li>
+<li><b>Revenue impact:</b> Churned customers represent significant lost revenue</li>
 </ul>
 </div>
 """, unsafe_allow_html=True)

@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from api.main import app
+from api.main import app, _artifacts
 from src.explain import explain_customer
 
 
@@ -67,6 +67,15 @@ class TestHealth:
         assert data["explainer_loaded"] is True
         assert data["model_type"] == "rf_balanced"
         assert data["max_depth"] == 8
+        assert data["n_features"] == 45
+
+    def test_health_returns_503_when_model_missing(self, api_client, monkeypatch):
+        """A missing model must fail the health check, not report made-up values."""
+        monkeypatch.setitem(_artifacts, "model", None)
+        response = api_client.get("/health")
+        assert response.status_code == 503
+        assert response.json()["status"] == "degraded"
+        assert response.json()["n_features"] is None
 
 
 class TestPredict:

@@ -6,7 +6,6 @@ import os
 import sqlite3
 from typing import Any, Dict, List, Optional, Tuple
 
-import joblib
 import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
@@ -193,13 +192,3 @@ def transform_new(df: pd.DataFrame, artifacts: Dict[str, Any]) -> pd.DataFrame:
 
     transformed = preprocessor.transform(df_copy)
     return transformed
-
-
-def save_artifacts(artifacts: Dict[str, Any], path: str) -> None:
-    """Save preprocessor artifacts to disk."""
-    joblib.dump(artifacts, path)
-
-
-def load_artifacts(path: str) -> Dict[str, Any]:
-    """Load preprocessor artifacts from disk."""
-    return joblib.load(path)

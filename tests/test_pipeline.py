@@ -2,11 +2,27 @@
 Unit and integration tests for Customer Churn Analytics preprocessing and modeling pipeline.
 """
 
+import sqlite3
+
 import numpy as np
 import pandas as pd
 import pytest
 
+from src import data_ingest
 from src.preprocess import build_features, load_data, split_data, transform_new
+
+
+def test_ingest_stores_numeric_columns_as_numbers(tmp_path, monkeypatch):
+    """Rebuilding the database must store tenure and senior_citizen as integers, not raw bytes."""
+    db_path = tmp_path / "churn.db"
+    monkeypatch.setattr(data_ingest, "DB_PATH", str(db_path))
+    data_ingest.create_database()
+    data_ingest.insert_data()
+
+    conn = sqlite3.connect(db_path)
+    types = conn.execute("SELECT DISTINCT typeof(tenure), typeof(senior_citizen) FROM customers").fetchall()
+    conn.close()
+    assert types == [("integer", "integer")]
 
 
 @pytest.fixture(scope="module")

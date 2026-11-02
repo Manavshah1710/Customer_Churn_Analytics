@@ -3,7 +3,32 @@ Pydantic schemas for the FastAPI service.
 """
 
 from typing import Literal, Optional
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import BaseModel, Field, ConfigDict
+
+from src.schema import (
+    Gender,
+    SeniorCitizen,
+    Partner,
+    Dependents,
+    ContractType,
+    PaperlessBilling,
+    PaymentMethod,
+    PhoneService,
+    MultipleLines,
+    InternetService,
+    OnlineSecurity,
+    OnlineBackup,
+    DeviceProtection,
+    TechSupport,
+    StreamingTV,
+    StreamingMovies,
+    TENURE_MIN,
+    TENURE_MAX,
+    MONTHLY_CHARGES_MIN,
+    MONTHLY_CHARGES_MAX,
+    TOTAL_CHARGES_MIN,
+    TOTAL_CHARGES_MAX,
+)
 
 
 # ============================================================
@@ -15,44 +40,30 @@ class CustomerInput(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     # Demographics
-    gender: Literal["Female", "Male"]
-    senior_citizen: Literal[0, 1]
-    partner: Literal["No", "Yes"]
-    dependents: Literal["No", "Yes"]
+    gender: Gender
+    senior_citizen: SeniorCitizen
+    partner: Partner
+    dependents: Dependents
 
     # Account & Billing
-    tenure: int = Field(ge=0, le=72)
-    contract: Literal["Month-to-month", "One year", "Two year"]
-    paperless_billing: Literal["Yes", "No"]
-    payment_method: Literal[
-        "Electronic check",
-        "Mailed check",
-        "Bank transfer (automatic)",
-        "Credit card (automatic)",
-    ]
-    monthly_charges: float = Field(ge=0.0, le=250.0)
-    total_charges: Optional[float] = Field(default=None, ge=0.0, le=15000.0)
+    tenure: int = Field(ge=TENURE_MIN, le=TENURE_MAX)
+    contract: ContractType
+    paperless_billing: PaperlessBilling
+    payment_method: PaymentMethod
+    monthly_charges: float = Field(ge=MONTHLY_CHARGES_MIN, le=MONTHLY_CHARGES_MAX)
+    # Blank means tenure * monthly_charges, computed in the /predict endpoint
+    total_charges: Optional[float] = Field(default=None, ge=TOTAL_CHARGES_MIN, le=TOTAL_CHARGES_MAX)
 
     # Services
-    phone_service: Literal["Yes", "No"]
-    multiple_lines: Literal["No", "Yes", "No phone service"]
-    internet_service: Literal["Fiber optic", "DSL", "No"]
-    online_security: Literal["No", "Yes", "No internet service"]
-    online_backup: Literal["No", "Yes", "No internet service"]
-    device_protection: Literal["No", "Yes", "No internet service"]
-    tech_support: Literal["No", "Yes", "No internet service"]
-    streaming_tv: Literal["No", "Yes", "No internet service"]
-    streaming_movies: Literal["No", "Yes", "No internet service"]
-
-    @field_validator("total_charges", mode="before")
-    @classmethod
-    def default_total_charges(cls, v, info):
-        """Default total_charges to tenure * monthly_charges if not provided."""
-        if v is None:
-            # We can't access other fields here in mode="before", so return None
-            # The actual default will be computed in the endpoint
-            return None
-        return v
+    phone_service: PhoneService
+    multiple_lines: MultipleLines
+    internet_service: InternetService
+    online_security: OnlineSecurity
+    online_backup: OnlineBackup
+    device_protection: DeviceProtection
+    tech_support: TechSupport
+    streaming_tv: StreamingTV
+    streaming_movies: StreamingMovies
 
 
 class Reason(BaseModel):
@@ -76,11 +87,12 @@ class HealthResponse(BaseModel):
     status: Literal["ok", "degraded"]
     artifacts_loaded: bool
     explainer_loaded: bool
-    model_type: str
-    max_depth: int
-    n_features: int
-    n_estimators: int
-    class_weight: str
+    # None when the matching artifact failed to load
+    model_type: Optional[str]
+    max_depth: Optional[int]
+    n_features: Optional[int]
+    n_estimators: Optional[int]
+    class_weight: Optional[str]
 
 
 class ModelInfoResponse(BaseModel):

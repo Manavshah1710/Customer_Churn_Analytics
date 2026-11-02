@@ -8,6 +8,9 @@ import sqlite3
 import matplotlib.pyplot as plt
 
 from src import PROJECT_ROOT
+from src.ui import apply_page_style
+
+apply_page_style()
 
 # -----------------------------------------
 # PAGE HEADER
@@ -62,7 +65,8 @@ st.markdown("## ⏳ Tenure-Based Risk Analysis")
 df["tenure_bucket"] = pd.cut(
     df["tenure"],
     bins=[0, 6, 12, 24, 36, 48, 60, 72],
-    labels=["0–6", "6–12", "12–24", "24–36", "36–48", "48–60", "60+"]
+    labels=["0–6", "6–12", "12–24", "24–36", "36–48", "48–60", "60+"],
+    include_lowest=True
 )
 
 tenure_churn = df.groupby("tenure_bucket", observed=False)["churn"].mean() * 100
@@ -154,24 +158,24 @@ st.markdown("---")
 # -----------------------------------------
 st.markdown("## 💰 Revenue Risk Segmentation")
 
-high_risk = df[df["churn"] == 1]
+churned = df[df["churn"] == 1]
 
 fig, ax = plt.subplots()
 ax.scatter(
-    high_risk["tenure"],
-    high_risk["monthly_charges"],
+    churned["tenure"],
+    churned["monthly_charges"],
     alpha=0.6
 )
 ax.set_xlabel("Tenure (Months)")
 ax.set_ylabel("Monthly Charges ($)")
-ax.set_title("High-Risk Customers Revenue Profile")
+ax.set_title("Churned Customers Revenue Profile")
 ax.grid(alpha=0.3)
 
 st.pyplot(fig)
 
 st.info(
-    "📌 **Insight:** High-risk customers often have higher monthly charges "
-    "and shorter tenure, representing a critical revenue retention opportunity."
+    "📌 **Insight:** Churned customers often have higher monthly charges "
+    "and shorter tenure, showing where revenue retention matters most."
 )
 
 # -----------------------------------------
@@ -184,7 +188,7 @@ st.markdown("""
 <li>Early-stage customers are the most vulnerable to churn</li>
 <li>Contract length is the strongest retention lever</li>
 <li>Service add-ons significantly reduce churn risk</li>
-<li>High-risk customers represent disproportionate revenue loss</li>
+<li>Churned customers represent disproportionate revenue loss</li>
 <li>Targeted retention strategies can deliver measurable ROI</li>
 </ul>
 </div>

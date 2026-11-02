@@ -47,6 +47,29 @@ def test_predict_churn_page_loads_and_submits(default_timeout):
     )
 
 
+def test_predict_keeps_typed_total_charges(default_timeout):
+    """A typed Total Charges value must survive a submit that also changes tenure."""
+    at = AppTest.from_file("pages/2_Predict_Churn.py", default_timeout=default_timeout).run()
+    inputs = {n.label: n for n in at.number_input}
+    at.slider[0].set_value(24)
+    inputs["Total Charges ($)"].set_value(500.0)
+    at.button[0].click().run()
+
+    assert not at.exception, f"Predict page raised exception on submit: {at.exception}"
+    assert {n.label: n.value for n in at.number_input}["Total Charges ($)"] == 500.0
+
+
+def test_predict_handles_estimate_above_total_charges_limit(default_timeout):
+    """Tenure x monthly above the Total Charges limit must not crash the page."""
+    at = AppTest.from_file("pages/2_Predict_Churn.py", default_timeout=default_timeout).run()
+    inputs = {n.label: n for n in at.number_input}
+    at.slider[0].set_value(72)
+    inputs["Monthly Charges ($)"].set_value(250.0)
+    at.button[0].click().run()
+
+    assert not at.exception, f"Predict page raised exception on submit: {at.exception}"
+
+
 def test_insights_page_loads(default_timeout):
     """Verifies that pages/3_Insights.py loads and displays risk factor analyses without exceptions."""
     at = AppTest.from_file("pages/3_Insights.py", default_timeout=default_timeout).run()

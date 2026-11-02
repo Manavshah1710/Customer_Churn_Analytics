@@ -3,7 +3,6 @@
 # =========================================
 
 import json
-from pathlib import Path
 
 import matplotlib
 matplotlib.use("Agg")
@@ -13,8 +12,10 @@ import pandas as pd
 import streamlit as st
 
 from src import PROJECT_ROOT
-from src.predict import load_artifacts
 from src.explain import global_importance
+from src.ui import apply_page_style
+
+apply_page_style()
 
 # -----------------------------------------
 # PAGE HEADER
@@ -28,7 +29,7 @@ Rigorous held-out test set performance, error matrices, and global feature impor
 
 
 # -----------------------------------------
-# LOAD METRICS & MODEL ARTIFACTS (CACHED)
+# LOAD METRICS & FEATURE IMPORTANCE (CACHED)
 # -----------------------------------------
 @st.cache_data
 def load_metrics_data():
@@ -40,13 +41,12 @@ def load_metrics_data():
         return json.load(f)
 
 
-@st.cache_resource
-def get_model_and_preprocessor():
-    return load_artifacts(str(PROJECT_ROOT / "models"))
+@st.cache_data
+def load_global_importance(sample_size):
+    return global_importance(sample_size=sample_size)
 
 
 metrics = load_metrics_data()
-model, preprocessor = get_model_and_preprocessor()
 
 # -----------------------------------------
 # HELD-OUT PERFORMANCE KPIS
@@ -96,6 +96,7 @@ with col_cutoffs:
     st.markdown(f"""
     <div style="
         background: #F8FAFC;
+        color: #0F172A;
         border: 1px solid #E2E8F0;
         border-radius: 10px;
         padding: 16px;
@@ -144,7 +145,7 @@ with fi_col:
     st.markdown("#### 🔍 Global feature importance (mean |SHAP|)")
 
     try:
-        global_imp = global_importance(sample_size=300)
+        global_imp = load_global_importance(300)
         top8 = global_imp[:8]
 
         features = [item["feature"].replace("_", " ").title() for item in top8]
@@ -163,7 +164,7 @@ with fi_col:
         st.pyplot(fig)
         plt.close(fig)
 
-        st.caption("Mean absolute SHAP value over 300 test samples. Higher = more impact on churn probability.")
+        st.caption("Mean absolute SHAP value over 300 test samples. Higher = more impact on risk score.")
     except Exception as e:
         st.info(f"SHAP global importance unavailable: {e}")
 
@@ -177,6 +178,7 @@ st.markdown("### ⚙️ Production Model Architecture")
 st.markdown(f"""
 <div style="
     background: #F8FAFC;
+    color: #0F172A;
     border: 1px solid #E2E8F0;
     border-radius: 12px;
     padding: 20px;

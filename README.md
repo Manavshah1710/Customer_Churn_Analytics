@@ -36,7 +36,7 @@ An end-to-end Machine Learning and Business Intelligence solution designed to pr
 Customer retention is significantly more cost-effective than customer acquisition (5–7× cheaper on average). For subscription businesses, losing customers directly erodes recurring monthly revenue (MRR), lifetime value (LTV), and market share.
 
 This platform bridges the gap between raw subscriber databases and retention operations:
-- **Identifies At-Risk Customers Early**: Uses a calibrated Random Forest classifier optimized for high recall to minimize undetected churn.
+- **Identifies At-Risk Customers Early**: Uses a Random Forest classifier optimized for high recall to minimize undetected churn.
 - **Dynamic Decile Risk Stratification**: Empirically segments customers into High (top 10%), Moderate (top 30%), and Low risk tiers based on test-set distributions.
 - **Explains Why Customers Churn**: Surfaces key risk drivers such as contract duration, payment method, tenure, and technical support add-ons.
 - **Multi-Role Enablement**: Equips business leaders, customer support agents, and marketing teams with dedicated dashboards and interactive real-time prediction tools.
@@ -46,7 +46,7 @@ This platform bridges the gap between raw subscriber databases and retention ope
 ## ✨ Key Features
 
 1. **Executive Analytics Dashboard (`1_Dashboard.py`)**
-   - High-level KPIs: Total Customer Base (7,043), Churn Rate (26.54%), High-Risk Customers Count (1,869), and Estimated Annual Revenue at Risk ($1.45M+).
+   - High-level KPIs: Total Customer Base (7,043), Churn Rate (26.54%), Churned Customers (1,869), and Annual Revenue Lost ($1.67M).
    - Cohort distributions and tenure vs. churn visualizations.
 
 2. **Real-Time Churn Predictor (`2_Predict_Churn.py`)**
@@ -66,7 +66,7 @@ This platform bridges the gap between raw subscriber databases and retention ope
    - Test confusion matrix and impurity-based global feature importances.
 
 5. **Universal Application Shell (`app.py`)**
-   - Polished, responsive design with light mode and dark mode theme switching via CSS variables.
+   - Polished, responsive design with a dark theme set in `.streamlit/config.toml`, and shared page styles in `src/ui.py`.
    - Clean sidebar navigation across all 5 sub-pages.
 
 ---
@@ -134,10 +134,10 @@ Here is a summary of all major refactoring and enhancements implemented up to th
 
 ### 4. Production Inference Module (`src/predict.py`)
 - Created a standalone inference interface with `@functools.lru_cache` to cache model and preprocessor objects in memory.
-- Unified interface accepting `dict`, `pd.Series`, or `pd.DataFrame`, producing calibrated probability outputs.
+- Unified interface accepting `dict`, `pd.Series`, or `pd.DataFrame`, producing churn risk scores. Scores rank customers well (AUC 0.85) but are not calibrated probabilities.
 
 ### 5. Streamlit Multipage Application Overhaul
-- **Centralized CSS System**: Replaced duplicate, conflicting stylesheets across pages with CSS custom properties in `app.py`, enabling seamless Light / Dark mode toggling.
+- **Centralized CSS System**: Replaced duplicate, conflicting stylesheets across pages with one shared helper in `src/ui.py`, called by every page.
 - **Form-Based Inference**: Redesigned `pages/2_Predict_Churn.py` with multi-column organized input fields (Demographics, Billing, Services), batch evaluation, and a visual risk badge.
 - **Model Info Modernization**: Updated `pages/4_Model_Info.py` to dynamically load values from `models/metrics.json` and display the holdout confusion matrix and top-10 feature importance.
 
@@ -186,7 +186,7 @@ Instead of an arbitrary 0.50 threshold, risk tiers are derived from the model's 
 
 ```
 Customer_Churn_Analytics/
-├── app.py                      # Streamlit application entry point & theme configuration
+├── app.py                      # Streamlit application entry point
 ├── claude_proxy.py             # Local resilient OpenRouter failover proxy
 ├── launch_claude.bat           # Batch launcher for development environment
 ├── requirements.txt            # Python dependencies (Streamlit, Scikit-learn, etc.)
@@ -225,7 +225,8 @@ Customer_Churn_Analytics/
 │   ├── predict.py              # Inference module with LRU artifact caching
 │   ├── preprocess.py           # Preprocessing pipeline & ColumnTransformer
 │   ├── sql_schema.sql          # Relational DDL for SQLite database
-│   └── train.py                # CLI model training & evaluation pipeline
+│   ├── train.py                # CLI model training & evaluation pipeline
+│   └── ui.py                   # Shared Streamlit page config & CSS
 │
 └── tests/
     ├── __init__.py
@@ -353,7 +354,7 @@ pytest tests/
 
 The project includes custom tooling for continuous AI pair-programming:
 - **`claude_proxy.py`**: A multi-account reverse proxy for OpenRouter that routes Anthropic-compatible API calls through a cascading pool of models. If an active key hits an HTTP 429 rate limit, the proxy switches upstream endpoints without dropping your session.
-- **`launch_claude.bat`**: One-click startup script that configures `.claude/settings.local.json`, starts the proxy in the background, and launches Claude Code.
+- **`launch_claude.bat`**: One-click startup script that points Claude Code at the proxy for that window only, starts the proxy in the background, and launches Claude Code.
 
 ---
 

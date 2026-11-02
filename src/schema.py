@@ -43,37 +43,3 @@ MONTHLY_CHARGES_MIN = 0.0
 MONTHLY_CHARGES_MAX = 250.0
 TOTAL_CHARGES_MIN = 0.0
 TOTAL_CHARGES_MAX = 15000.0
-
-# ============================================================
-# Top-k for explanations
-# ============================================================
-
-TOP_K_MIN = 1
-TOP_K_MAX = 10
-TOP_K_DEFAULT = 5
-
-# ============================================================
-# All raw feature names (for validation)
-# ============================================================
-
-ALL_RAW_FEATURES = [
-    "gender",
-    "senior_citizen",
-    "partner",
-    "dependents",
-    "tenure",
-    "contract",
-    "paperless_billing",
-    "payment_method",
-    "monthly_charges",
-    "total_charges",
-    "phone_service",
-    "multiple_lines",
-    "internet_service",
-    "online_security",
-    "online_backup",
-    "device_protection",
-    "tech_support",
-    "streaming_tv",
-    "streaming_movies",
-]

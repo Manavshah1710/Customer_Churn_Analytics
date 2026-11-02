@@ -15,7 +15,6 @@ import http.server
 import json
 import os
 import sys
-import threading
 import time
 import urllib.request
 from typing import Any, Dict, List
@@ -149,35 +148,18 @@ class FailoverHandler(http.server.BaseHTTPRequestHandler):
 
             try:
                 res = urllib.request.urlopen(req, timeout=60)
-                print(f"[Proxy -> OK] Served via {cfg['name']} | Model: {cfg['model']}")
-
-                self.send_response(res.status)
-                for k, v in res.getheaders():
-                    if k.lower() not in ["content-length", "transfer-encoding", "connection"]:
-                        self.send_header(k, v)
-                self.end_headers()
-
-                # Stream response chunks back to Claude Code
-                while True:
-                    chunk = res.read(512)
-                    if not chunk:
-                        break
-                    self.wfile.write(chunk)
-                    self.wfile.flush()
-                return
-
             except urllib.error.HTTPError as e:
                 err_data = e.read()
                 err_text = err_data.decode("utf-8", errors="ignore")
 
                 # If rate limited (429) or upstream error (502/503/524), switch immediately
-                if e.code in [429, 502, 503, 504, 524] or "rate" in err_text.lower():
+                if e.code in [429, 502, 503, 504, 524]:
                     next_index = (self.current_index + 1) % total_configs
                     print(
                         f"\n[Proxy -> {e.code} FAILOVER] {cfg['name']} ({cfg['model']}) error: {err_text[:80]}...\n"
                         f"  -> Switching automatically to {CONFIGS[next_index]['name']} ({CONFIGS[next_index]['model']})...\n"
                     )
-                    self.current_index = next_index
+                    FailoverHandler.current_index = next_index
                     time.sleep(1)
                     continue
                 else:
@@ -189,9 +171,31 @@ class FailoverHandler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 next_index = (self.current_index + 1) % total_configs
                 print(f"\n[Proxy -> Connection Error: {e}] Switching to {CONFIGS[next_index]['name']}...\n")
-                self.current_index = next_index
+                FailoverHandler.current_index = next_index
                 time.sleep(1)
                 continue
+
+            print(f"[Proxy -> OK] Served via {cfg['name']} | Model: {cfg['model']}")
+
+            # Never retry from here on: the client would get two replies joined together
+            try:
+                with res:
+                    self.send_response(res.status)
+                    for k, v in res.getheaders():
+                        if k.lower() not in ["content-length", "transfer-encoding", "connection"]:
+                            self.send_header(k, v)
+                    self.end_headers()
+
+                    # Stream response chunks back to Claude Code
+                    while True:
+                        chunk = res.read(512)
+                        if not chunk:
+                            break
+                        self.wfile.write(chunk)
+                        self.wfile.flush()
+            except Exception as e:
+                print(f"[Proxy -> Stream Aborted] {e}")
+            return
 
         # If all exhausted
         self.send_response(429)
@@ -209,6 +213,9 @@ class FailoverHandler(http.server.BaseHTTPRequestHandler):
 
 
 def main() -> None:
+    if not CONFIGS:
+        sys.exit("No OpenRouter keys found. Set OPENROUTER_API_KEY_1 or OPENROUTER_API_KEY_2 in .env.")
+
     server_address = ("127.0.0.1", PORT)
     server = http.server.ThreadingHTTPServer(server_address, FailoverHandler)
     print("=" * 65)
