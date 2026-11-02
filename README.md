@@ -52,7 +52,7 @@ This platform bridges the gap between raw subscriber databases and retention ope
 2. **Real-Time Churn Predictor (`2_Predict_Churn.py`)**
    - Interactive profile builder covering Demographics, Account & Billing, and Subscribed Services.
    - Real-time scoring using the production preprocessing pipeline (`src/predict.py`).
-   - Visual risk gauge with dynamic percentile cutoffs (High Risk $\ge 80.1\%$, Moderate Risk $\ge 50.8\%$).
+   - Visual risk gauge with dynamic percentile cutoffs (High Risk score $\ge 0.818$, Moderate Risk score $\ge 0.607$).
    - Integration slot for LLM-generated personalized retention action plans.
 
 3. **Deep-Dive Customer Insights (`3_Insights.py`)**
