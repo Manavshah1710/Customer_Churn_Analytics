@@ -102,13 +102,13 @@ with col_cutoffs:
         padding: 16px;
     ">
         <p style="margin: 0 0 8px 0;">
-            <span style="color:#DC2626; font-weight:600;">🚨 High Risk (Top 10% Cutoff):</span> &ge; <b>{th_high * 100:.1f}%</b>
+            <span style="color:#DC2626; font-weight:600;">🚨 High Risk (Top 10% Cutoff):</span> &ge; <b>{th_high:.3f}</b>
         </p>
         <p style="margin: 0 0 8px 0;">
-            <span style="color:#D97706; font-weight:600;">⚠️ Moderate Risk (Top 30% Cutoff):</span> &ge; <b>{th_mod * 100:.1f}%</b>
+            <span style="color:#D97706; font-weight:600;">⚠️ Moderate Risk (Top 30% Cutoff):</span> &ge; <b>{th_mod:.3f}</b>
         </p>
         <p style="margin: 0;">
-            <span style="color:#059669; font-weight:600;">✅ Low Risk:</span> &lt; <b>{th_mod * 100:.1f}%</b>
+            <span style="color:#059669; font-weight:600;">✅ Low Risk:</span> &lt; <b>{th_mod:.3f}</b>
         </p>
     </div>
     """, unsafe_allow_html=True)

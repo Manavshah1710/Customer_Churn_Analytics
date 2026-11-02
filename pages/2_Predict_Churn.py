@@ -213,7 +213,7 @@ with result_col:
             <span style="font-size:2rem;">{status_icon}</span>
             <h2 style="color:{badge_color}; margin:6px 0 2px 0;">{risk_tier}</h2>
             <p style="color:#6B7280; font-size:0.9rem; margin:0;">Churn Risk Score</p>
-            <h1 style="color:{badge_color}; margin:8px 0; font-size:2.8rem;">{churn_prob * 100:.1f}%</h1>
+            <h1 style="color:{badge_color}; margin:8px 0; font-size:2.8rem;">{churn_prob:.3f}</h1>
         </div>
         """, unsafe_allow_html=True)
 
@@ -222,8 +222,9 @@ with result_col:
         st.markdown(f"""
         <div style="font-size:0.85rem; color:#6B7280; margin-top:8px;">
             <b>Dynamic Risk Cutoffs:</b><br>
-            • High Risk (Top 10% test decile): &ge; <b>{threshold_high * 100:.1f}%</b><br>
-            • Moderate Risk (Top 30% test cutoff): &ge; <b>{threshold_moderate * 100:.1f}%</b>
+            • High Risk (Top 10% test decile): &ge; <b>{threshold_high:.3f}</b><br>
+            • Moderate Risk (Top 30% test cutoff): &ge; <b>{threshold_moderate:.3f}</b><br>
+            The score ranks customers from 0 to 1. It is not a chance of churning.
         </div>
         """, unsafe_allow_html=True)
 

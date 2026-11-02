@@ -3,6 +3,8 @@ Integration and UI tests for Streamlit application pages using streamlit.testing
 Verifies all pages load without exceptions and the Predict page submits default values to return probabilities.
 """
 
+import re
+
 import pytest
 from streamlit.testing.v1 import AppTest
 
@@ -68,6 +70,17 @@ def test_predict_handles_estimate_above_total_charges_limit(default_timeout):
     at.button[0].click().run()
 
     assert not at.exception, f"Predict page raised exception on submit: {at.exception}"
+
+
+def test_predict_does_not_show_score_as_percent(default_timeout):
+    """Scores are uncalibrated, so they must not read like a percent chance of churning."""
+    at = AppTest.from_file("pages/2_Predict_Churn.py", default_timeout=default_timeout).run()
+    at.button[0].click().run()
+
+    assert not at.exception, f"Predict page raised exception on submit: {at.exception}"
+    text_content = " ".join(m.value for m in at.markdown)
+    assert "Churn Risk Score" in text_content
+    assert not re.search(r"\d\.\d%", text_content), "Score or cutoff shown as a percentage"
 
 
 def test_insights_page_loads(default_timeout):
