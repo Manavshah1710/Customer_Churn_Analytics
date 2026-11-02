@@ -38,6 +38,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - shap==0.46.0
 - fastapi==0.162.0
 - uvicorn==0.54.0
+- pydantic==2.14.1
 - httpx==0.28.1
 - setuptools<71
 - sqlalchemy<2.1.0
