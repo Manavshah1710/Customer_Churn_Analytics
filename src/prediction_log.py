@@ -12,6 +12,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict
 
+import pandas as pd
+
 from src import PROJECT_ROOT
 from src.explain import ALL_RAW_FEATURES
 
@@ -24,9 +26,24 @@ def _model_version() -> str:
     return hashlib.sha256((PROJECT_ROOT / "models" / "churn_model.pkl").read_bytes()).hexdigest()[:12]
 
 
+def _log_path() -> Path:
+    """Set PREDICTION_LOG_PATH to store the log somewhere else."""
+    return Path(os.environ.get("PREDICTION_LOG_PATH", PROJECT_ROOT / "data" / "predictions.db"))
+
+
+def load_predictions(limit: int) -> pd.DataFrame:
+    """Return the most recent predictions, oldest first. Empty if nothing has been logged yet."""
+    db_path = _log_path()
+    if not db_path.exists():
+        return pd.DataFrame(columns=COLUMNS)
+    with closing(sqlite3.connect(db_path)) as conn:
+        recent = pd.read_sql_query("SELECT * FROM predictions ORDER BY rowid DESC LIMIT ?", conn, params=(limit,))
+    return recent.iloc[::-1].reset_index(drop=True)
+
+
 def log_prediction(raw_input: Dict[str, Any], result: Dict[str, Any]) -> None:
-    """Append one prediction. Set PREDICTION_LOG_PATH to store the log somewhere else."""
-    db_path = Path(os.environ.get("PREDICTION_LOG_PATH", PROJECT_ROOT / "data" / "predictions.db"))
+    """Append one prediction."""
+    db_path = _log_path()
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
     values = [raw_input[feature] for feature in ALL_RAW_FEATURES] + [
