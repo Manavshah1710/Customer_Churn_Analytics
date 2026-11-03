@@ -211,6 +211,8 @@ Install through `requirements.txt`. Installing Evidently on its own upgrades pro
 
 This is a resume and portfolio project, intended for educational and demonstration purposes. The code has no open-source licence.
 
+This is a two-person project with [Manavshah1710](https://github.com/Manavshah1710), who built the original model, MLflow tracking, SHAP explanations and FastAPI service.
+
 Data sources:
 
 - [Telecom Customer Churn - 100k Cleaned Records](https://www.kaggle.com/datasets/shenoudasafwat/telecom-customer-churn-100k-cleaned-records) by Kaggle user `shenoudasafwat`, licensed under [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/), provided as is with no warranty. Stored at `data/raw/Telecom_customer churn_100k.csv`. Changes made: this project loads it into SQLite and trains on 15 of its columns.
