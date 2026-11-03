@@ -3,7 +3,6 @@ Tests for SHAP explainability module.
 """
 
 import json
-import pytest
 import numpy as np
 
 from src.explain import explain_customer, global_importance, get_explainer, ALL_RAW_FEATURES, _sum_shap_by_raw_feature
@@ -60,7 +59,7 @@ def test_explain_customer_additivity():
     result = explain_customer(customer, top_k=20)  # get all reasons
 
     # Sum all SHAP values (not just top_k)
-    from src.explain import get_explainer, _sum_shap_by_raw_feature
+    from src.explain import get_explainer
     from src.predict import load_artifacts
     from src.preprocess import transform_new
     from src import PROJECT_ROOT
@@ -248,7 +247,7 @@ def test_import_does_not_load_models():
 
 def test_grouped_shap_sum_matches_ungrouped():
     """Verify grouped SHAP sum matches ungrouped (per-dummy) sum within 1e-6 for several customers."""
-    from src.explain import get_explainer, _sum_shap_by_raw_feature
+    from src.explain import get_explainer
     from src.predict import load_artifacts
     from src.preprocess import transform_new
     from src import PROJECT_ROOT

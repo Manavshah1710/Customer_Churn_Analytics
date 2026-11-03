@@ -3,8 +3,6 @@ Unit and integration tests for src/predict.py inference module.
 """
 
 import numpy as np
-import pandas as pd
-import pytest
 
 from src.predict import load_artifacts, predict_churn
 from src.preprocess import load_data

@@ -235,7 +235,7 @@ if __name__ == "__main__":
 
     # Test import time
     import_start = time.perf_counter()
-    import shap
+    import shap  # noqa: F401 - imported only to time it
     import_time = time.perf_counter() - import_start
     print(f"import shap: {import_time*1000:.1f}ms")
 

@@ -18,13 +18,13 @@ from src.explain import get_explainer, explain_customer
 def main():
     # Test import time
     import_start = time.perf_counter()
-    import shap
+    import shap  # noqa: F401 - imported only to time it
     import_time = time.perf_counter() - import_start
     print(f"import shap: {import_time*1000:.1f}ms")
 
     # Test explainer build
     build_start = time.perf_counter()
-    explainer = get_explainer()
+    get_explainer()
     build_time = time.perf_counter() - build_start
     print(f"explainer build: {build_time*1000:.1f}ms")
 
@@ -49,17 +49,17 @@ def main():
 
     # Cold call (first call after build)
     cold_start = time.perf_counter()
-    exp_a = explain_customer(customer_a)
+    explain_customer(customer_a)
     cold_time = time.perf_counter() - cold_start
     print(f"cold explain_customer: {cold_time*1000:.1f}ms")
 
     # Warm call
     warm_start = time.perf_counter()
-    exp_b = explain_customer(customer_b)
+    explain_customer(customer_b)
     warm_time = time.perf_counter() - warm_start
     print(f"warm explain_customer: {warm_time*1000:.1f}ms")
 
-    print(f"\nSummary:")
+    print("\nSummary:")
     print(f"  import shap:        {import_time*1000:>8.1f}ms")
     print(f"  explainer build:    {build_time*1000:>8.1f}ms")
     print(f"  cold explain:       {cold_time*1000:>8.1f}ms")

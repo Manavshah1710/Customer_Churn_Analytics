@@ -14,7 +14,6 @@ All experiment runs set promote=False so production artifacts in models/ are str
 
 import argparse
 import os
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -22,12 +21,10 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import matplotlib
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import mlflow
 import mlflow.sklearn
 import numpy as np
 import pandas as pd
-import seaborn as sns
 from imblearn.over_sampling import SMOTE
 from imblearn.pipeline import Pipeline as ImbPipeline
 from mlflow.models import infer_signature
@@ -44,8 +41,6 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.preprocess import build_features, build_preprocessor, load_data, split_data
 from src.train import (
-    DEFAULT_ARTIFACT_DIR,
-    DEFAULT_TRACKING_URI,
     evaluate_model,
     get_git_commit_hash,
     get_or_create_experiment,
