@@ -9,8 +9,8 @@ import pandas as pd
 import pytest
 
 from src import data_ingest
-from src.preprocess import MISSING_CATEGORY, build_features, load_data, split_data, transform_new
-from src.schema import MODEL_FEATURES
+from src.preprocess import MISSING_CATEGORY, build_features, churn_rate_by_band, load_data, split_data, transform_new
+from src.schema import MODEL_FEATURES, NUMERIC_FIELDS
 
 
 def test_ingest_loads_every_row_with_real_types(tmp_path, monkeypatch):
@@ -28,6 +28,22 @@ def test_ingest_loads_every_row_with_real_types(tmp_path, monkeypatch):
     assert rows == 100_000
     assert types == [("integer", "integer")]
     assert churn_values == [(0,), (1,)]
+
+
+def test_field_limits_accept_every_real_customer(raw_dataset):
+    """The form and API limits must never reject a real row of the training data."""
+    for name, spec in NUMERIC_FIELDS.items():
+        assert raw_dataset[name].min() >= spec["min"], name
+        assert raw_dataset[name].max() <= spec["max"], name
+        assert spec["min"] <= spec["default"] <= spec["max"], name
+
+
+def test_churn_rate_by_band():
+    df = pd.DataFrame({"churn": [1, 0, 1, 1, 0], "x": [0, 5, 6, 7, None]})
+    rates = churn_rate_by_band(df, "x", bins=[0, 5, 10], labels=["low", "high"])
+
+    assert rates["low"] == 50.0
+    assert rates["high"] == 100.0
 
 
 def test_model_features_exclude_demographics_and_identifiers():

@@ -13,6 +13,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.explain import get_explainer, explain_customer
+from src.schema import EXAMPLE_HIGH_RISK, EXAMPLE_LOW_RISK
 
 
 def main():
@@ -29,23 +30,8 @@ def main():
     print(f"explainer build: {build_time*1000:.1f}ms")
 
     # Test customers
-    customer_a = {
-        "gender": "Female", "senior_citizen": 0, "partner": "No", "dependents": "No",
-        "tenure": 1, "contract": "Month-to-month", "paperless_billing": "Yes",
-        "payment_method": "Electronic check", "monthly_charges": 85.0, "total_charges": 85.0,
-        "phone_service": "Yes", "multiple_lines": "No", "internet_service": "Fiber optic",
-        "online_security": "No", "online_backup": "No", "device_protection": "No",
-        "tech_support": "No", "streaming_tv": "No", "streaming_movies": "No",
-    }
-
-    customer_b = {
-        "gender": "Male", "senior_citizen": 0, "partner": "Yes", "dependents": "Yes",
-        "tenure": 60, "contract": "Two year", "paperless_billing": "No",
-        "payment_method": "Credit card (automatic)", "monthly_charges": 60.0, "total_charges": 3600.0,
-        "phone_service": "Yes", "multiple_lines": "Yes", "internet_service": "DSL",
-        "online_security": "Yes", "online_backup": "Yes", "device_protection": "Yes",
-        "tech_support": "Yes", "streaming_tv": "No", "streaming_movies": "No",
-    }
+    customer_a = EXAMPLE_HIGH_RISK
+    customer_b = EXAMPLE_LOW_RISK
 
     # Cold call (first call after build)
     cold_start = time.perf_counter()

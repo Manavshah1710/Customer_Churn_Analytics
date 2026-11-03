@@ -1,29 +1,28 @@
 {
-    "auc": 0.8512,
-    "precision": 0.5366,
-    "recall": 0.7647,
-    "f1": 0.6307,
-    "accuracy": 0.7622,
+    "auc": 0.6833,
+    "precision": 0.6225,
+    "recall": 0.633,
+    "f1": 0.6277,
+    "accuracy": 0.6279,
     "confusion_matrix": [
         [
-            788,
-            247
+            6283,
+            3805
         ],
         [
-            88,
-            286
+            3638,
+            6274
         ]
     ],
-    "top_10_decile_capture_rate": 28.61,
-    "churners_caught_in_top_10": 107,
-    "total_churners_in_test": 374,
-    "test_support_0": 1035,
-    "test_support_1": 374,
-    "threshold_high_risk": 0.818,
-    "threshold_moderate_risk": 0.607,
-    "model_type": "rf_balanced",
+    "top_10_decile_capture_rate": 15.63,
+    "churners_caught_in_top_10": 1549,
+    "total_churners_in_test": 9912,
+    "test_support_0": 10088,
+    "test_support_1": 9912,
+    "threshold_high_risk": 0.6972,
+    "threshold_moderate_risk": 0.5836,
+    "model_type": "hist_gradient_boosting",
     "n_estimators": 300,
-    "max_depth": 8,
-    "class_weight": "balanced",
-    "use_smote": false
+    "max_depth": 6,
+    "learning_rate": 0.05
 }

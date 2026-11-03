@@ -3,204 +3,108 @@ Tests for SHAP explainability module.
 """
 
 import json
-import numpy as np
 
-from src.explain import explain_customer, global_importance, get_explainer, ALL_RAW_FEATURES, _sum_shap_by_raw_feature
+import numpy as np
+import pandas as pd
+import pytest
+
+from src import PROJECT_ROOT
+from src.explain import explain_customer, global_importance, get_explainer, _sum_shap_by_raw_feature
+from src.predict import load_artifacts
+from src.preprocess import load_data, split_data, transform_new
+from src.schema import EXAMPLE_HIGH_RISK, EXAMPLE_LOW_RISK, MODEL_FEATURES
+
+ALL_REASONS = len(MODEL_FEATURES)
+
+
+def _sigmoid(value):
+    return 1 / (1 + np.exp(-value))
 
 
 def test_explain_customer_schema():
     """Verify explain_customer returns the correct schema with proper types."""
-    customer = {
-        "gender": "Female", "senior_citizen": 0, "partner": "No", "dependents": "No",
-        "tenure": 1, "contract": "Month-to-month", "paperless_billing": "Yes",
-        "payment_method": "Electronic check", "monthly_charges": 85.0, "total_charges": 85.0,
-        "phone_service": "Yes", "multiple_lines": "No", "internet_service": "Fiber optic",
-        "online_security": "No", "online_backup": "No", "device_protection": "No",
-        "tech_support": "No", "streaming_tv": "No", "streaming_movies": "No",
-    }
+    result = explain_customer(EXAMPLE_HIGH_RISK)
 
-    result = explain_customer(customer)
-
-    # Required keys
-    assert "probability" in result
-    assert "base_value" in result
-    assert "risk_level" in result
-    assert "reasons" in result
-
-    # Types
     assert isinstance(result["probability"], float)
     assert isinstance(result["base_value"], float)
     assert result["risk_level"] in ("high", "moderate", "low")
     assert isinstance(result["reasons"], list)
     assert len(result["reasons"]) == 5  # default top_k=5
 
-    # Each reason has correct structure
     for r in result["reasons"]:
-        assert "feature" in r
-        assert "customer_value" in r
-        assert "shap_value" in r
-        assert "direction" in r
-        assert r["direction"] in ("increases_risk", "decreases_risk")
+        assert r["feature"] in MODEL_FEATURES
+        assert r["customer_value"] == EXAMPLE_HIGH_RISK[r["feature"]]
         assert isinstance(r["shap_value"], float)
-        assert r["feature"] in ALL_RAW_FEATURES
+        assert r["direction"] == ("increases_risk" if r["shap_value"] > 0 else "decreases_risk")
 
 
-def test_explain_customer_additivity():
-    """Verify base_value + sum(shap_values) == probability within tolerance."""
-    customer = {
-        "gender": "Female", "senior_citizen": 0, "partner": "No", "dependents": "No",
-        "tenure": 1, "contract": "Month-to-month", "paperless_billing": "Yes",
-        "payment_method": "Electronic check", "monthly_charges": 85.0, "total_charges": 85.0,
-        "phone_service": "Yes", "multiple_lines": "No", "internet_service": "Fiber optic",
-        "online_security": "No", "online_backup": "No", "device_protection": "No",
-        "tech_support": "No", "streaming_tv": "No", "streaming_movies": "No",
-    }
+@pytest.mark.parametrize("customer", [EXAMPLE_HIGH_RISK, EXAMPLE_LOW_RISK])
+def test_explain_customer_additivity(customer):
+    """Verify sigmoid(base_value + sum(shap_values)) == probability: SHAP values are in log-odds."""
+    result = explain_customer(customer, top_k=ALL_REASONS)
 
-    result = explain_customer(customer, top_k=20)  # get all reasons
-
-    # Sum all SHAP values (not just top_k)
-    from src.explain import get_explainer
-    from src.predict import load_artifacts
-    from src.preprocess import transform_new
-    from src import PROJECT_ROOT
-    import pandas as pd
-
-    model, preprocessor = load_artifacts(str(PROJECT_ROOT / "models"))
-    input_df = pd.DataFrame([customer])
-    input_proc = transform_new(input_df, preprocessor)
-
-    explainer = get_explainer()
-    shap_values = explainer.shap_values(input_proc)
-
-    if shap_values.ndim == 3:
-        shap_class1 = shap_values[0, :, 1]
-        base_value = float(explainer.expected_value[1])
-    else:
-        shap_class1 = shap_values[0]
-        base_value = float(explainer.expected_value)
-
-    feature_names = preprocessor["preprocessor"].get_feature_names_out().tolist()
-    all_reasons = _sum_shap_by_raw_feature(shap_class1, feature_names, customer)
-
-    total_shap = sum(r["shap_value"] for r in all_reasons)
-    reconstructed = base_value + total_shap
-
-    assert abs(reconstructed - result["probability"]) < 1e-4, \
-        f"Additivity failed: base+sum={reconstructed}, prob={result['probability']}"
+    assert len(result["reasons"]) == ALL_REASONS
+    total = result["base_value"] + sum(r["shap_value"] for r in result["reasons"])
+    assert abs(_sigmoid(total) - result["probability"]) < 1e-4, (
+        f"Additivity failed: sigmoid(base+sum)={_sigmoid(total)}, prob={result['probability']}"
+    )
 
 
 def test_explain_customer_risk_level_matches_thresholds():
-    """Verify risk_level matches thresholds from metrics.json."""
-    from src import PROJECT_ROOT
-
+    """Verify risk_level matches thresholds from metrics.json across real held-out customers."""
     with open(PROJECT_ROOT / "models" / "metrics.json", "r") as f:
         metrics = json.load(f)
     threshold_high = metrics["threshold_high_risk"]
     threshold_moderate = metrics["threshold_moderate_risk"]
 
-    # High risk customer
-    customer_high = {
-        "gender": "Female", "senior_citizen": 0, "partner": "No", "dependents": "No",
-        "tenure": 1, "contract": "Month-to-month", "paperless_billing": "Yes",
-        "payment_method": "Electronic check", "monthly_charges": 85.0, "total_charges": 85.0,
-        "phone_service": "Yes", "multiple_lines": "No", "internet_service": "Fiber optic",
-        "online_security": "No", "online_backup": "No", "device_protection": "No",
-        "tech_support": "No", "streaming_tv": "No", "streaming_movies": "No",
-    }
-    exp_high = explain_customer(customer_high)
-    assert exp_high["risk_level"] == "high"
-    assert exp_high["probability"] >= threshold_high
+    assert explain_customer(EXAMPLE_HIGH_RISK)["risk_level"] == "high"
+    assert explain_customer(EXAMPLE_LOW_RISK)["risk_level"] == "low"
 
-    # Low risk customer
-    customer_low = {
-        "gender": "Male", "senior_citizen": 0, "partner": "Yes", "dependents": "Yes",
-        "tenure": 60, "contract": "Two year", "paperless_billing": "No",
-        "payment_method": "Credit card (automatic)", "monthly_charges": 60.0, "total_charges": 3600.0,
-        "phone_service": "Yes", "multiple_lines": "Yes", "internet_service": "DSL",
-        "online_security": "Yes", "online_backup": "Yes", "device_protection": "Yes",
-        "tech_support": "Yes", "streaming_tv": "No", "streaming_movies": "No",
-    }
-    exp_low = explain_customer(customer_low)
-    assert exp_low["risk_level"] == "low"
-    assert exp_low["probability"] < threshold_moderate
-
-    # Moderate risk (construct one near threshold)
-    customer_mod = {
-        "gender": "Male", "senior_citizen": 0, "partner": "No", "dependents": "No",
-        "tenure": 12, "contract": "One year", "paperless_billing": "Yes",
-        "payment_method": "Bank transfer (automatic)", "monthly_charges": 70.0, "total_charges": 840.0,
-        "phone_service": "Yes", "multiple_lines": "No", "internet_service": "DSL",
-        "online_security": "No", "online_backup": "No", "device_protection": "No",
-        "tech_support": "No", "streaming_tv": "Yes", "streaming_movies": "No",
-    }
-    exp_mod = explain_customer(customer_mod)
-    assert exp_mod["risk_level"] in ("moderate", "high", "low")  # just verify it's valid
+    _, X_test, _, _ = split_data(load_data("data/churn.db"))
+    seen = set()
+    for customer in X_test.head(100).to_dict("records"):
+        result = explain_customer(customer, top_k=1)
+        expected = (
+            "high" if result["probability"] >= threshold_high
+            else "moderate" if result["probability"] >= threshold_moderate
+            else "low"
+        )
+        assert result["risk_level"] == expected
+        seen.add(expected)
+    assert seen == {"high", "moderate", "low"}, f"Sample did not exercise every tier: {seen}"
 
 
 def test_explain_customer_high_risk_sanity():
-    """High-risk sanity customer has contract or tenure in top 3 reasons with increases_risk."""
-    customer = {
-        "gender": "Female", "senior_citizen": 0, "partner": "No", "dependents": "No",
-        "tenure": 1, "contract": "Month-to-month", "paperless_billing": "Yes",
-        "payment_method": "Electronic check", "monthly_charges": 85.0, "total_charges": 85.0,
-        "phone_service": "Yes", "multiple_lines": "No", "internet_service": "Fiber optic",
-        "online_security": "No", "online_backup": "No", "device_protection": "No",
-        "tech_support": "No", "streaming_tv": "No", "streaming_movies": "No",
-    }
+    """High-risk customer has falling usage or tenure in its top reasons, and they increase risk."""
+    result = explain_customer(EXAMPLE_HIGH_RISK, top_k=ALL_REASONS)
+    top3 = {r["feature"]: r["direction"] for r in result["reasons"][:3]}
 
-    result = explain_customer(customer, top_k=10)
-    top3_features = [r["feature"] for r in result["reasons"][:3]]
-    top3_directions = [r["direction"] for r in result["reasons"][:3]]
-
-    # Must have contract or tenure in top 3
-    assert "contract" in top3_features or "tenure" in top3_features, \
-        f"Expected contract or tenure in top 3, got {top3_features}"
-
-    # And direction must be increases_risk for those
-    for feat, direction in zip(top3_features, top3_directions):
-        if feat in ("contract", "tenure"):
-            assert direction == "increases_risk", \
-                f"{feat} should increase risk for high-risk customer, got {direction}"
+    assert {"change_mou", "mou_Mean", "months"} & set(top3), f"Unexpected top reasons: {list(top3)}"
+    for feature in {"change_mou", "mou_Mean", "months"} & set(top3):
+        assert top3[feature] == "increases_risk", f"{feature} should increase risk"
 
 
 def test_explain_customer_low_risk_sanity():
-    """Low-risk sanity customer has mostly decreases_risk directions."""
-    customer = {
-        "gender": "Male", "senior_citizen": 0, "partner": "Yes", "dependents": "Yes",
-        "tenure": 60, "contract": "Two year", "paperless_billing": "No",
-        "payment_method": "Credit card (automatic)", "monthly_charges": 60.0, "total_charges": 3600.0,
-        "phone_service": "Yes", "multiple_lines": "Yes", "internet_service": "DSL",
-        "online_security": "Yes", "online_backup": "Yes", "device_protection": "Yes",
-        "tech_support": "Yes", "streaming_tv": "No", "streaming_movies": "No",
-    }
-
-    result = explain_customer(customer, top_k=10)
-    decreases = sum(1 for r in result["reasons"] if r["direction"] == "decreases_risk")
-    total = len(result["reasons"])
-
-    # Majority should be decreases_risk
-    assert decreases >= total // 2, \
-        f"Expected majority decreases_risk, got {decreases}/{total}"
+    """Low-risk customer's contributions must pull the score below the base value."""
+    result = explain_customer(EXAMPLE_LOW_RISK, top_k=ALL_REASONS)
+    assert sum(r["shap_value"] for r in result["reasons"]) < 0
 
 
 def test_explain_customer_reasons_sorted_by_abs_shap():
     """Reasons must be sorted by absolute SHAP value descending."""
-    customer = {
-        "gender": "Female", "senior_citizen": 0, "partner": "No", "dependents": "No",
-        "tenure": 1, "contract": "Month-to-month", "paperless_billing": "Yes",
-        "payment_method": "Electronic check", "monthly_charges": 85.0, "total_charges": 85.0,
-        "phone_service": "Yes", "multiple_lines": "No", "internet_service": "Fiber optic",
-        "online_security": "No", "online_backup": "No", "device_protection": "No",
-        "tech_support": "No", "streaming_tv": "No", "streaming_movies": "No",
-    }
-
-    result = explain_customer(customer, top_k=20)
+    result = explain_customer(EXAMPLE_HIGH_RISK, top_k=ALL_REASONS)
     abs_shaps = [abs(r["shap_value"]) for r in result["reasons"]]
+    assert abs_shaps == sorted(abs_shaps, reverse=True)
 
-    # Must be non-increasing
-    for i in range(len(abs_shaps) - 1):
-        assert abs_shaps[i] >= abs_shaps[i + 1], \
-            f"Reasons not sorted by |shap|: {abs_shaps[i]} < {abs_shaps[i+1]}"
+
+def test_explain_customer_handles_missing_values():
+    """Real records have gaps: a null value still gets a score and is reported as null."""
+    result = explain_customer({**EXAMPLE_HIGH_RISK, "change_mou": None, "asl_flag": None}, top_k=ALL_REASONS)
+
+    assert 0.0 <= result["probability"] <= 1.0
+    by_feature = {r["feature"]: r for r in result["reasons"]}
+    assert by_feature["change_mou"]["customer_value"] is None
+    assert by_feature["asl_flag"]["customer_value"] is None
 
 
 def test_global_importance_schema():
@@ -211,95 +115,37 @@ def test_global_importance_schema():
     assert len(result) > 0
 
     for item in result:
-        assert "feature" in item
-        assert "mean_abs_shap" in item
         assert isinstance(item["mean_abs_shap"], float)
         assert item["mean_abs_shap"] >= 0
-        assert item["feature"] in ALL_RAW_FEATURES
+        assert item["feature"] in MODEL_FEATURES
 
-    # Sorted descending
     vals = [item["mean_abs_shap"] for item in result]
-    for i in range(len(vals) - 1):
-        assert vals[i] >= vals[i + 1]
+    assert vals == sorted(vals, reverse=True)
 
 
 def test_global_importance_covers_all_raw_features():
-    """Global importance should cover all 19 raw features."""
-    result = global_importance(sample_size=100)
-    features = {item["feature"] for item in result}
-    missing = set(ALL_RAW_FEATURES) - features
+    """Global importance should cover every model input column."""
+    features = {item["feature"] for item in global_importance(sample_size=100)}
+    missing = set(MODEL_FEATURES) - features
     assert not missing, f"Missing features in global importance: {missing}"
 
 
 def test_get_explainer_cached():
     """get_explainer should return the same object on subsequent calls (lru_cache)."""
-    exp1 = get_explainer()
-    exp2 = get_explainer()
-    assert exp1 is exp2, "get_explainer should be cached"
-
-
-def test_import_does_not_load_models():
-    """Importing explain.py should not require models/ to exist."""
-    # This test passes if import succeeds without models/ access
-    # The actual check is that no exception is raised at import time
-    pass  # If we got here, import worked
+    assert get_explainer() is get_explainer(), "get_explainer should be cached"
 
 
 def test_grouped_shap_sum_matches_ungrouped():
     """Verify grouped SHAP sum matches ungrouped (per-dummy) sum within 1e-6 for several customers."""
-    from src.explain import get_explainer
-    from src.predict import load_artifacts
-    from src.preprocess import transform_new
-    from src import PROJECT_ROOT
-    import pandas as pd
-
-    model, preprocessor = load_artifacts(str(PROJECT_ROOT / "models"))
+    _, preprocessor = load_artifacts(str(PROJECT_ROOT / "models"))
     explainer = get_explainer()
+    feature_names = preprocessor["preprocessor"].get_feature_names_out().tolist()
 
-    test_customers = [
-        {
-            "gender": "Female", "senior_citizen": 0, "partner": "No", "dependents": "No",
-            "tenure": 1, "contract": "Month-to-month", "paperless_billing": "Yes",
-            "payment_method": "Electronic check", "monthly_charges": 85.0, "total_charges": 85.0,
-            "phone_service": "Yes", "multiple_lines": "No", "internet_service": "Fiber optic",
-            "online_security": "No", "online_backup": "No", "device_protection": "No",
-            "tech_support": "No", "streaming_tv": "No", "streaming_movies": "No",
-        },
-        {
-            "gender": "Male", "senior_citizen": 0, "partner": "Yes", "dependents": "Yes",
-            "tenure": 60, "contract": "Two year", "paperless_billing": "No",
-            "payment_method": "Credit card (automatic)", "monthly_charges": 60.0, "total_charges": 3600.0,
-            "phone_service": "Yes", "multiple_lines": "Yes", "internet_service": "DSL",
-            "online_security": "Yes", "online_backup": "Yes", "device_protection": "Yes",
-            "tech_support": "Yes", "streaming_tv": "No", "streaming_movies": "No",
-        },
-        {
-            "gender": "Male", "senior_citizen": 1, "partner": "No", "dependents": "No",
-            "tenure": 12, "contract": "One year", "paperless_billing": "Yes",
-            "payment_method": "Bank transfer (automatic)", "monthly_charges": 75.0, "total_charges": 900.0,
-            "phone_service": "Yes", "multiple_lines": "Yes", "internet_service": "DSL",
-            "online_security": "Yes", "online_backup": "No", "device_protection": "Yes",
-            "tech_support": "No", "streaming_tv": "Yes", "streaming_movies": "Yes",
-        },
-    ]
+    for customer in [EXAMPLE_HIGH_RISK, EXAMPLE_LOW_RISK, {**EXAMPLE_HIGH_RISK, "asl_flag": "Y"}]:
+        input_proc = transform_new(pd.DataFrame([customer]), preprocessor)
+        shap_class1 = explainer.shap_values(input_proc)[0]
 
-    for customer in test_customers:
-        input_df = pd.DataFrame([customer])
-        input_proc = transform_new(input_df, preprocessor)
-        feature_names = preprocessor["preprocessor"].get_feature_names_out().tolist()
-
-        shap_values = explainer.shap_values(input_proc)
-        if shap_values.ndim == 3:
-            shap_class1 = shap_values[0, :, 1]
-        else:
-            shap_class1 = shap_values[0]
-
-        # Ungrouped sum (all per-dummy values)
-        ungrouped_sum = float(np.sum(shap_class1))
-
-        # Grouped sum
         reasons = _sum_shap_by_raw_feature(shap_class1, feature_names, customer)
         grouped_sum = sum(r["shap_value"] for r in reasons)
 
-        assert abs(grouped_sum - ungrouped_sum) < 1e-6, \
-            f"Grouped/ungrouped mismatch: grouped={grouped_sum}, ungrouped={ungrouped_sum}, customer={customer}"
+        assert abs(grouped_sum - float(np.sum(shap_class1))) < 1e-6, f"Grouped/ungrouped mismatch for {customer}"

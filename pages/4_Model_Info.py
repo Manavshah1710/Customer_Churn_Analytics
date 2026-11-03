@@ -13,6 +13,7 @@ import streamlit as st
 
 from src import PROJECT_ROOT
 from src.explain import global_importance
+from src.schema import FEATURE_LABELS
 from src.ui import apply_page_style
 
 apply_page_style()
@@ -86,7 +87,12 @@ with col_decile:
         </p>
     </div>
     """, unsafe_allow_html=True)
-    st.caption("Top-decile capture measures how effectively retention campaigns can prioritize outreach to catch the maximum churners with minimum intervention cost.")
+    flagged = int(np.ceil((metrics["test_support_0"] + metrics["test_support_1"]) * 0.10))
+    overall_rate = total / (metrics["test_support_0"] + metrics["test_support_1"]) * 100
+    st.caption(
+        f"{caught / flagged * 100:.1f}% of the {flagged:,} flagged customers churned, against {overall_rate:.1f}% overall. "
+        f"With about half of this sample churning, a top 10% list can catch at most {flagged / total * 100:.1f}% of churners."
+    )
 
 with col_cutoffs:
     st.markdown("#### 📐 Risk Classification Cutoffs")
@@ -148,7 +154,7 @@ with fi_col:
         global_imp = load_global_importance(300)
         top8 = global_imp[:8]
 
-        features = [item["feature"].replace("_", " ").title() for item in top8]
+        features = [FEATURE_LABELS[item["feature"]] for item in top8]
         values = [item["mean_abs_shap"] for item in top8]
 
         fig, ax = plt.subplots(figsize=(6, 3.8))
@@ -164,7 +170,7 @@ with fi_col:
         st.pyplot(fig)
         plt.close(fig)
 
-        st.caption("Mean absolute SHAP value over 300 test samples. Higher = more impact on risk score.")
+        st.caption("Mean absolute SHAP value in log-odds, over 300 test samples. Higher = more impact on risk score.")
     except Exception as e:
         st.info(f"SHAP global importance unavailable: {e}")
 
@@ -186,23 +192,23 @@ st.markdown(f"""
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
         <div>
             <b style="color:#64748B;">Algorithm</b><br>
-            <span>Random Forest Classifier</span>
+            <span>HistGradientBoosting Classifier</span>
         </div>
         <div>
-            <b style="color:#64748B;">Class Weighting</b><br>
-            <span><code>class_weight='balanced'</code></span>
+            <b style="color:#64748B;">Learning Rate</b><br>
+            <span>{metrics['learning_rate']}</span>
         </div>
         <div>
-            <b style="color:#64748B;">Estimators (Trees)</b><br>
-            <span>{metrics.get('n_estimators', 300)}</span>
+            <b style="color:#64748B;">Boosting Iterations</b><br>
+            <span>{metrics['n_estimators']}</span>
         </div>
         <div>
             <b style="color:#64748B;">Max Tree Depth</b><br>
-            <span>{metrics.get('max_depth', 8)}</span>
+            <span>{metrics['max_depth']}</span>
         </div>
         <div>
             <b style="color:#64748B;">Feature Encoding</b><br>
-            <span>One-Hot (no drop_first) + StandardScaler</span>
+            <span>Median imputation, scaling, one-hot encoding</span>
         </div>
     </div>
 </div>

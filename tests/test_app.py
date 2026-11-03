@@ -8,6 +8,8 @@ import re
 import pytest
 from streamlit.testing.v1 import AppTest
 
+from src.schema import EXAMPLE_HIGH_RISK, EXAMPLE_LOW_RISK, NUMERIC_FIELDS
+
 
 @pytest.fixture
 def default_timeout():
@@ -49,27 +51,19 @@ def test_predict_churn_page_loads_and_submits(default_timeout):
     )
 
 
-def test_predict_keeps_typed_total_charges(default_timeout):
-    """A typed Total Charges value must survive a submit that also changes tenure."""
+@pytest.mark.parametrize("customer, expected", [(EXAMPLE_HIGH_RISK, "High Risk"), (EXAMPLE_LOW_RISK, "Low Risk")])
+def test_predict_form_uses_the_entered_values(default_timeout, customer, expected):
+    """Values typed into every field must reach the model and change the result."""
     at = AppTest.from_file("pages/2_Predict_Churn.py", default_timeout=default_timeout).run()
     inputs = {n.label: n for n in at.number_input}
-    at.slider[0].set_value(24)
-    inputs["Total Charges ($)"].set_value(500.0)
+    assert len(inputs) == len(NUMERIC_FIELDS)
+    for name, spec in NUMERIC_FIELDS.items():
+        inputs[spec["label"]].set_value(customer[name])
+    at.selectbox[0].set_value(customer["asl_flag"])
     at.button[0].click().run()
 
     assert not at.exception, f"Predict page raised exception on submit: {at.exception}"
-    assert {n.label: n.value for n in at.number_input}["Total Charges ($)"] == 500.0
-
-
-def test_predict_handles_estimate_above_total_charges_limit(default_timeout):
-    """Tenure x monthly above the Total Charges limit must not crash the page."""
-    at = AppTest.from_file("pages/2_Predict_Churn.py", default_timeout=default_timeout).run()
-    inputs = {n.label: n for n in at.number_input}
-    at.slider[0].set_value(72)
-    inputs["Monthly Charges ($)"].set_value(250.0)
-    at.button[0].click().run()
-
-    assert not at.exception, f"Predict page raised exception on submit: {at.exception}"
+    assert expected in " ".join(m.value for m in at.markdown)
 
 
 def test_predict_does_not_show_score_as_percent(default_timeout):
@@ -107,7 +101,7 @@ def test_monitoring_page_separates_healthy_data_from_drift():
 
     at.radio[0].set_value("Simulated drift (demo)").run()
     assert not at.exception, f"Monitoring page raised exception: {at.exception}"
-    assert len(at.error) == 1 and "tenure" in at.error[0].value
+    assert len(at.error) == 1 and "mou_Mean" in at.error[0].value
 
 
 def test_about_page_loads(default_timeout):

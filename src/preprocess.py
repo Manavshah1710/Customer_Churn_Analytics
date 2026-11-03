@@ -14,6 +14,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
+from src import PROJECT_ROOT
 from src.schema import MODEL_FEATURES, NUMERICAL_FEATURES
 
 NUMERIC_COLUMNS: List[str] = NUMERICAL_FEATURES
@@ -37,6 +38,20 @@ def load_data(db_path: str = "data/churn.db") -> pd.DataFrame:
     conn.close()
 
     return _clean_text_columns(df)
+
+
+def load_customer_columns(columns: List[str]) -> pd.DataFrame:
+    """Loads named columns for the analytics pages, whichever folder the app was started from."""
+    conn = sqlite3.connect(PROJECT_ROOT / "data" / "churn.db")
+    df = pd.read_sql_query(f"SELECT {', '.join(columns)} FROM customers", conn)
+    conn.close()
+    return df
+
+
+def churn_rate_by_band(df: pd.DataFrame, column: str, bins: List[float], labels: List[str]) -> pd.Series:
+    """Churn rate (%) per band of a numeric column. Rows with no value are left out."""
+    bands = pd.cut(df[column], bins=bins, labels=labels, include_lowest=True)
+    return df.groupby(bands, observed=False)["churn"].mean() * 100
 
 
 def split_data(

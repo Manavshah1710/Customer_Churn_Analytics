@@ -3,11 +3,9 @@
 # =========================================
 
 import streamlit as st
-import pandas as pd
-import sqlite3
 import matplotlib.pyplot as plt
 
-from src import PROJECT_ROOT
+from src.preprocess import churn_rate_by_band, load_customer_columns
 from src.ui import apply_page_style
 
 apply_page_style()
@@ -18,178 +16,144 @@ apply_page_style()
 st.markdown("""
 <h2 style="margin-bottom:4px;">Customer Insights</h2>
 <p style="color:#64748b; margin-top:0;">
-Deep-dive analysis into churn drivers and customer behavior patterns
+Patterns measured in this dataset. They show association, not proof of cause.
 </p>
 """, unsafe_allow_html=True)
+
 
 # -----------------------------------------
 # DATA LOADING (CACHED)
 # -----------------------------------------
-DB_PATH = PROJECT_ROOT / "data" / "churn.db"
-
 @st.cache_data
 def load_insights_data():
-    conn = sqlite3.connect(DB_PATH)
+    return load_customer_columns(["churn", "months", "eqpdays", "hnd_price", "drop_vce_Mean", "asl_flag"])
 
-    query = """
-    SELECT
-        c.customer_id,
-        c.churn,
-        c.tenure,
-        c.senior_citizen,
-        a.contract,
-        a.payment_method,
-        a.monthly_charges,
-        a.total_charges,
-        s.internet_service,
-        s.tech_support,
-        s.online_security
-    FROM customers c
-    JOIN accounts a ON c.customer_id = a.customer_id
-    JOIN services s ON c.customer_id = s.customer_id;
-    """
-
-    df = pd.read_sql_query(query, conn)
-    conn.close()
-
-    df["churn"] = df["churn"].map({"Yes": 1, "No": 0})
-    return df
 
 df = load_insights_data()
 
 # -----------------------------------------
-# INSIGHT 1 — TENURE VS CHURN
+# INSIGHT 1 — THE ONE-YEAR JUMP
 # -----------------------------------------
-st.markdown("## ⏳ Tenure-Based Risk Analysis")
+st.markdown("## ⏳ The One-Year Jump")
 
-df["tenure_bucket"] = pd.cut(
-    df["tenure"],
-    bins=[0, 6, 12, 24, 36, 48, 60, 72],
-    labels=["0–6", "6–12", "12–24", "24–36", "36–48", "48–60", "60+"],
-    include_lowest=True
-)
+first_two_years = df[df["months"] <= 24].groupby("months")["churn"].mean() * 100
 
-tenure_churn = df.groupby("tenure_bucket", observed=False)["churn"].mean() * 100
-
-fig, ax = plt.subplots()
-tenure_churn.plot(kind="line", marker="o", ax=ax)
+fig, ax = plt.subplots(figsize=(9, 3.5))
+first_two_years.plot(kind="line", marker="o", ax=ax)
 ax.set_ylabel("Churn Rate (%)")
 ax.set_xlabel("Tenure (Months)")
 ax.grid(alpha=0.3)
 st.pyplot(fig)
+plt.close(fig)
 
+early = df[df["months"].between(7, 9)]["churn"].mean() * 100
 st.info(
-    "📌 **Insight:** Churn risk is highest in the first 6–12 months. "
-    "Early onboarding and engagement programs are critical for retention."
+    f"📌 **Insight:** Churn is {early:.0f}% at months 7-9, then {first_two_years[10]:.0f}% at month 10 and "
+    f"{first_two_years[11]:.0f}% at month 11. This fits contracts ending near one year, but the dataset does not "
+    "record contract terms. If that is the cause, retention outreach should start before month 10."
 )
 
 st.markdown("---")
 
 # -----------------------------------------
-# INSIGHT 2 — CONTRACT & PAYMENT EFFECT
+# INSIGHT 2 — HANDSETS
 # -----------------------------------------
-st.markdown("## 📜 Contract & Payment Behavior")
+st.markdown("## 📱 Handset Age and Price")
 
 col1, col2 = st.columns(2)
 
-with col1:
-    contract_churn = df.groupby("contract")["churn"].mean() * 100
+handset_age = churn_rate_by_band(
+    df, "eqpdays",
+    bins=[-10, 90, 180, 270, 365, 730, 4000],
+    labels=["0-90", "91-180", "181-270", "271-365", "366-730", "731+"],
+)
+handset_price = churn_rate_by_band(
+    df, "hnd_price",
+    bins=[0, 30, 60, 100, 150, 2000],
+    labels=["Up to $30", "$31-60", "$61-100", "$101-150", "Over $150"],
+)
 
+with col1:
     fig, ax = plt.subplots()
-    contract_churn.plot(kind="bar", ax=ax)
+    handset_age.plot(kind="bar", ax=ax)
     ax.set_ylabel("Churn Rate (%)")
-    ax.set_title("Churn Rate by Contract Type")
+    ax.set_xlabel("Handset Age (Days)")
+    ax.set_title("Churn by Handset Age")
     ax.grid(axis="y", alpha=0.3)
     st.pyplot(fig)
+    plt.close(fig)
 
 with col2:
-    payment_churn = df.groupby("payment_method")["churn"].mean() * 100
-
     fig, ax = plt.subplots()
-    payment_churn.plot(kind="barh", ax=ax)
-    ax.set_xlabel("Churn Rate (%)")
-    ax.set_title("Churn Rate by Payment Method")
-    ax.grid(axis="x", alpha=0.3)
+    handset_price.plot(kind="bar", ax=ax)
+    ax.set_ylabel("Churn Rate (%)")
+    ax.set_xlabel("Handset Price")
+    ax.set_title("Churn by Handset Price")
+    ax.grid(axis="y", alpha=0.3)
     st.pyplot(fig)
+    plt.close(fig)
 
 st.info(
-    "📌 **Insight:** Month-to-month contracts and electronic check payments "
-    "are strongly associated with higher churn risk."
+    f"📌 **Insight:** Churn moves from {handset_age['181-270']:.0f}% at 181-270 days to "
+    f"{handset_age['271-365']:.0f}% at 271-365 days. Customers on the cheapest handsets churn at "
+    f"{handset_price['Up to $30']:.0f}%, against {handset_price['Over $150']:.0f}% on the most expensive."
 )
 
 st.markdown("---")
 
 # -----------------------------------------
-# INSIGHT 3 — SERVICE ADD-ONS IMPACT
+# INSIGHT 3 — WHAT MATTERS LESS THAN EXPECTED
 # -----------------------------------------
-st.markdown("## 🧩 Service Add-ons & Churn")
+st.markdown("## 📶 Dropped Calls and Spending Limits")
 
-addon_cols = st.columns(2)
+col3, col4 = st.columns(2)
 
-with addon_cols[0]:
-    tech_support_churn = df.groupby("tech_support")["churn"].mean() * 100
+dropped_calls = churn_rate_by_band(
+    df, "drop_vce_Mean",
+    bins=[0, 2, 5, 10, 20, 500],
+    labels=["0-2", "3-5", "6-10", "11-20", "21+"],
+)
+spending_limit = df.groupby("asl_flag")["churn"].mean() * 100
 
+with col3:
     fig, ax = plt.subplots()
-    tech_support_churn.plot(kind="bar", ax=ax)
+    dropped_calls.plot(kind="bar", ax=ax)
     ax.set_ylabel("Churn Rate (%)")
-    ax.set_title("Churn by Tech Support")
+    ax.set_xlabel("Dropped Calls per Month")
+    ax.set_title("Churn by Dropped Calls")
+    ax.set_ylim(bottom=0)
     ax.grid(axis="y", alpha=0.3)
     st.pyplot(fig)
+    plt.close(fig)
 
-with addon_cols[1]:
-    security_churn = df.groupby("online_security")["churn"].mean() * 100
-
+with col4:
     fig, ax = plt.subplots()
-    security_churn.plot(kind="bar", ax=ax)
+    spending_limit.rename({"N": "No limit", "Y": "Has limit"}).plot(kind="bar", ax=ax)
     ax.set_ylabel("Churn Rate (%)")
-    ax.set_title("Churn by Online Security")
+    ax.set_xlabel("Account Spending Limit")
+    ax.set_title("Churn by Spending Limit")
+    ax.set_ylim(bottom=0)
     ax.grid(axis="y", alpha=0.3)
     st.pyplot(fig)
+    plt.close(fig)
 
 st.info(
-    "📌 **Insight:** Customers without Tech Support or Online Security "
-    "are significantly more likely to churn. Bundled services improve retention."
-)
-
-st.markdown("---")
-
-# -----------------------------------------
-# INSIGHT 4 — REVENUE RISK SEGMENTATION
-# -----------------------------------------
-st.markdown("## 💰 Revenue Risk Segmentation")
-
-churned = df[df["churn"] == 1]
-
-fig, ax = plt.subplots()
-ax.scatter(
-    churned["tenure"],
-    churned["monthly_charges"],
-    alpha=0.6
-)
-ax.set_xlabel("Tenure (Months)")
-ax.set_ylabel("Monthly Charges ($)")
-ax.set_title("Churned Customers Revenue Profile")
-ax.grid(alpha=0.3)
-
-st.pyplot(fig)
-
-st.info(
-    "📌 **Insight:** Churned customers often have higher monthly charges "
-    "and shorter tenure, showing where revenue retention matters most."
+    f"📌 **Insight:** Dropped calls barely separate customers on their own: churn stays between "
+    f"{dropped_calls.min():.0f}% and {dropped_calls.max():.0f}% across every band. Accounts with a spending limit "
+    f"churn at {spending_limit['Y']:.0f}%, against {spending_limit['N']:.0f}% without one."
 )
 
 # -----------------------------------------
-# EXECUTIVE SUMMARY
+# SUMMARY
 # -----------------------------------------
-st.markdown("""
+st.markdown(f"""
 <div class="soft-card">
-<h4>🧠 Executive Summary</h4>
+<h4>🧠 Summary</h4>
 <ul>
-<li>Early-stage customers are the most vulnerable to churn</li>
-<li>Contract length is the strongest retention lever</li>
-<li>Service add-ons significantly reduce churn risk</li>
-<li>Churned customers represent disproportionate revenue loss</li>
-<li>Targeted retention strategies can deliver measurable ROI</li>
+<li>The sharpest pattern is by tenure: month {first_two_years.idxmax()} has the highest churn in the first two years, at {first_two_years.max():.0f}%</li>
+<li>Older and cheaper handsets are associated with more churn</li>
+<li>Network quality, measured by dropped calls, shows little link to churn on its own</li>
+<li>These figures come from an evenly split sample, so compare groups rather than reading them as real churn rates</li>
 </ul>
 </div>
 """, unsafe_allow_html=True)

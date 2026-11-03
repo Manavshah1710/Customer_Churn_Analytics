@@ -21,28 +21,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.predict import load_artifacts
 from src.preprocess import load_data, split_data, transform_new
-
-
-# Raw feature to group mapping
-RAW_FEATURE_GROUPS = {
-    "demographics": [
-        "gender", "senior_citizen", "partner", "dependents"
-    ],
-    "account": [
-        "tenure", "contract", "paperless_billing", "payment_method",
-        "monthly_charges", "total_charges"
-    ],
-    "services": [
-        "phone_service", "multiple_lines", "internet_service",
-        "online_security", "online_backup", "device_protection",
-        "tech_support", "streaming_tv", "streaming_movies"
-    ]
-}
-
-# Flatten for validation
-ALL_RAW_FEATURES = []
-for group_features in RAW_FEATURE_GROUPS.values():
-    ALL_RAW_FEATURES.extend(group_features)
+from src.schema import EXAMPLE_HIGH_RISK, EXAMPLE_LOW_RISK, MODEL_FEATURES
 
 
 def _get_raw_feature_value(raw_input: Dict[str, Any], feature: str) -> Any:
@@ -60,8 +39,8 @@ def _sum_shap_by_raw_feature(
     Returns list of dicts with raw feature name, customer value, summed SHAP, direction.
     """
     # Map transformed feature -> raw feature
-    raw_to_shap = {feat: 0.0 for feat in ALL_RAW_FEATURES}
-    raw_to_dummy_count = {feat: 0 for feat in ALL_RAW_FEATURES}
+    raw_to_shap = {feat: 0.0 for feat in MODEL_FEATURES}
+    raw_to_dummy_count = {feat: 0 for feat in MODEL_FEATURES}
 
     for i, fname in enumerate(feature_names):
         if fname.startswith("num__"):
@@ -78,7 +57,7 @@ def _sum_shap_by_raw_feature(
             suffix = fname[5:]
             best_match = None
             best_len = 0
-            for raw in ALL_RAW_FEATURES:
+            for raw in MODEL_FEATURES:
                 if suffix.startswith(raw + "_") and len(raw) > best_len:
                     best_len = len(raw)
                     best_match = raw
@@ -88,9 +67,9 @@ def _sum_shap_by_raw_feature(
 
     # Build reasons list
     reasons = []
-    for raw_feat in ALL_RAW_FEATURES:
+    for raw_feat in MODEL_FEATURES:
         shap_sum = raw_to_shap[raw_feat]
-        if raw_to_dummy_count[raw_feat] > 0 or raw_feat in ["senior_citizen"]:  # include binary/numeric even if 0
+        if raw_to_dummy_count[raw_feat] > 0:
             reasons.append({
                 "feature": raw_feat,
                 "customer_value": _get_raw_feature_value(raw_input, raw_feat),
@@ -128,11 +107,12 @@ def explain_customer(raw_input: Dict[str, Any], top_k: int = 5) -> Dict[str, Any
     Generate a grouped SHAP explanation for a single customer.
 
     Args:
-        raw_input: Dict with 19 raw feature values
+        raw_input: Dict with the raw values of MODEL_FEATURES
         top_k: Number of top reasons to return (default 5)
 
     Returns:
-        Dict with keys: probability, base_value, risk_level, reasons[]
+        Dict with keys: probability, base_value, risk_level, reasons[].
+        base_value and shap_value are in log-odds: sigmoid(base_value + all shap values) == probability.
     """
     model, preprocessor = load_artifacts(str(PROJECT_ROOT / "models"))
     artifacts = preprocessor
@@ -148,15 +128,8 @@ def explain_customer(raw_input: Dict[str, Any], top_k: int = 5) -> Dict[str, Any
 
     # Get SHAP values (lazy explainer)
     explainer = get_explainer()
-    shap_values = explainer.shap_values(input_proc)  # shape (1, n_features, 2)
-
-    # For binary classification: [0] = class 0, [1] = class 1
-    if shap_values.ndim == 3:
-        shap_class1 = shap_values[0, :, 1]
-        base_value = float(explainer.expected_value[1])
-    else:
-        shap_class1 = shap_values[0]
-        base_value = float(explainer.expected_value)
+    shap_class1 = explainer.shap_values(input_proc)[0]
+    base_value = float(np.ravel(explainer.expected_value)[0])
 
     feature_names = artifacts["preprocessor"].get_feature_names_out().tolist()
 
@@ -199,17 +172,12 @@ def global_importance(sample_size: int = 300) -> List[Dict[str, Any]]:
     X_sample = X_test_proc.iloc[sample_idx]
 
     explainer = get_explainer()
-    shap_values = explainer.shap_values(X_sample)
-
-    if shap_values.ndim == 3:
-        shap_class1 = shap_values[:, :, 1]
-    else:
-        shap_class1 = shap_values
+    shap_class1 = explainer.shap_values(X_sample)
 
     feature_names = artifacts["preprocessor"].get_feature_names_out().tolist()
 
     # Sum dummies into raw features for each sample, then average
-    raw_shap_sums = {feat: [] for feat in ALL_RAW_FEATURES}
+    raw_shap_sums = {feat: [] for feat in MODEL_FEATURES}
 
     for i in range(shap_class1.shape[0]):
         reasons = _sum_shap_by_raw_feature(shap_class1[i], feature_names, {})
@@ -246,23 +214,8 @@ if __name__ == "__main__":
     print(f"explainer build: {build_time*1000:.1f}ms")
 
     # Test customers
-    customer_a = {
-        "gender": "Female", "senior_citizen": 0, "partner": "No", "dependents": "No",
-        "tenure": 1, "contract": "Month-to-month", "paperless_billing": "Yes",
-        "payment_method": "Electronic check", "monthly_charges": 85.0, "total_charges": 85.0,
-        "phone_service": "Yes", "multiple_lines": "No", "internet_service": "Fiber optic",
-        "online_security": "No", "online_backup": "No", "device_protection": "No",
-        "tech_support": "No", "streaming_tv": "No", "streaming_movies": "No",
-    }
-
-    customer_b = {
-        "gender": "Male", "senior_citizen": 0, "partner": "Yes", "dependents": "Yes",
-        "tenure": 60, "contract": "Two year", "paperless_billing": "No",
-        "payment_method": "Credit card (automatic)", "monthly_charges": 60.0, "total_charges": 3600.0,
-        "phone_service": "Yes", "multiple_lines": "Yes", "internet_service": "DSL",
-        "online_security": "Yes", "online_backup": "Yes", "device_protection": "Yes",
-        "tech_support": "Yes", "streaming_tv": "No", "streaming_movies": "No",
-    }
+    customer_a = EXAMPLE_HIGH_RISK
+    customer_b = EXAMPLE_LOW_RISK
 
     # Cold call
     cold_start = time.perf_counter()

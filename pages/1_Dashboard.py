@@ -3,11 +3,9 @@
 # =========================================
 
 import streamlit as st
-import pandas as pd
-import sqlite3
 import matplotlib.pyplot as plt
 
-from src import PROJECT_ROOT
+from src.preprocess import churn_rate_by_band, load_customer_columns
 from src.ui import apply_page_style
 
 apply_page_style()
@@ -18,48 +16,20 @@ apply_page_style()
 st.markdown("""
 <h2 style="margin-bottom:4px;">Analytics Dashboard</h2>
 <p style="color:#64748b; margin-top:0;">
-Real-time customer churn insights and key business metrics
+Customer base and churn patterns in the 100,000-customer dataset
 </p>
 """, unsafe_allow_html=True)
+
 
 # -----------------------------------------
 # DATA LOADING (CACHED)
 # -----------------------------------------
-DB_PATH = PROJECT_ROOT / "data" / "churn.db"
-
 @st.cache_data
 def load_dashboard_data():
-    conn = sqlite3.connect(DB_PATH)
+    return load_customer_columns(["churn", "months", "eqpdays", "mou_Mean", "change_mou", "rev_Mean"])
 
-    query = """
-    SELECT 
-        c.customer_id,
-        c.churn,
-        c.tenure,
-        a.contract,
-        a.monthly_charges,
-        s.internet_service
-    FROM customers c
-    JOIN accounts a ON c.customer_id = a.customer_id
-    JOIN services s ON c.customer_id = s.customer_id;
-    """
-
-    df = pd.read_sql_query(query, conn)
-    conn.close()
-
-    df["churn"] = df["churn"].map({"Yes": 1, "No": 0})
-    return df
 
 df = load_dashboard_data()
-
-# -----------------------------------------
-# KPI CALCULATIONS
-# -----------------------------------------
-total_customers = df.shape[0]
-churn_rate = df["churn"].mean() * 100
-churned = df[df["churn"] == 1]
-churned_customers = churned.shape[0]
-annual_revenue_lost = churned["monthly_charges"].sum() * 12
 
 # -----------------------------------------
 # KPI SECTION
@@ -67,16 +37,21 @@ annual_revenue_lost = churned["monthly_charges"].sum() * 12
 kpi1, kpi2, kpi3, kpi4 = st.columns(4)
 
 with kpi1:
-    st.metric("Total Customers", f"{total_customers:,}")
+    st.metric("Total Customers", f"{df.shape[0]:,}")
 
 with kpi2:
-    st.metric("Churn Rate", f"{churn_rate:.1f}%")
+    st.metric("Churn in Sample", f"{df['churn'].mean() * 100:.1f}%")
 
 with kpi3:
-    st.metric("Churned Customers", f"{churned_customers:,}")
+    st.metric("Median Tenure", f"{df['months'].median():.0f} months")
 
 with kpi4:
-    st.metric("Annual Revenue Lost", f"${annual_revenue_lost/1e6:.2f}M")
+    st.metric("Average Monthly Revenue", f"${df['rev_Mean'].mean():.2f}")
+
+st.caption(
+    "This dataset is almost evenly split between churned and retained customers, "
+    "so its churn rate should not be read as a real company's churn rate."
+)
 
 st.markdown("---")
 
@@ -85,91 +60,93 @@ st.markdown("---")
 # -----------------------------------------
 col1, col2 = st.columns(2)
 
-# ---- Churn Trend by Tenure ----
-df["tenure_bucket"] = pd.cut(
-    df["tenure"],
-    bins=[0, 6, 12, 24, 36, 48, 60, 72],
-    labels=["0–6", "6–12", "12–24", "24–36", "36–48", "48–60", "60+"],
-    include_lowest=True
+tenure = churn_rate_by_band(
+    df, "months",
+    bins=[0, 9, 10, 12, 18, 24, 36, 100],
+    labels=["Up to 9", "10", "11-12", "13-18", "19-24", "25-36", "37+"],
 )
 
-trend = df.groupby("tenure_bucket", observed=False)["churn"].mean() * 100
-
 with col1:
-    st.markdown("### Churn Trend by Tenure")
-    st.caption("Churn rate across customer lifecycle stages")
+    st.markdown("### Churn by Tenure")
+    st.caption("Churn rate across the customer lifecycle")
 
     fig, ax = plt.subplots()
-    trend.plot(ax=ax, marker="o")
+    tenure.plot(ax=ax, marker="o")
     ax.set_ylabel("Churn Rate (%)")
     ax.set_xlabel("Tenure (Months)")
     ax.grid(alpha=0.3)
     st.pyplot(fig)
+    plt.close(fig)
 
-# ---- Churn by Contract Type ----
-contract_churn = df.groupby(["contract", "churn"]).size().unstack()
+handset_age = churn_rate_by_band(
+    df, "eqpdays",
+    bins=[-10, 90, 180, 270, 365, 730, 4000],
+    labels=["0-90", "91-180", "181-270", "271-365", "366-730", "731+"],
+)
 
 with col2:
-    st.markdown("### Churn by Contract Type")
-    st.caption("Month-to-month contracts exhibit higher churn")
+    st.markdown("### Churn by Handset Age")
+    st.caption("Days since the current handset was issued")
 
     fig, ax = plt.subplots()
-    contract_churn.plot(kind="bar", ax=ax)
-    ax.set_ylabel("Customers")
-    ax.legend(["Retained", "Churned"])
+    handset_age.plot(kind="bar", ax=ax)
+    ax.set_ylabel("Churn Rate (%)")
+    ax.set_xlabel("Handset Age (Days)")
     ax.grid(axis="y", alpha=0.3)
     st.pyplot(fig)
+    plt.close(fig)
 
 st.markdown("---")
 
-# -----------------------------------------
-# SECOND ROW CHARTS
-# -----------------------------------------
 col3, col4 = st.columns(2)
 
-# ---- Churn Distribution ----
-churn_counts = df["churn"].value_counts()
+minutes = churn_rate_by_band(
+    df, "mou_Mean",
+    bins=[0, 100, 250, 500, 1000, 20000],
+    labels=["0-100", "101-250", "251-500", "501-1000", "1001+"],
+)
 
 with col3:
-    st.markdown("### Churn Distribution")
-    st.caption("Overall churn vs retained customer split")
+    st.markdown("### Churn by Monthly Minutes")
+    st.caption("Average monthly minutes of use")
 
     fig, ax = plt.subplots()
-    ax.pie(
-        churn_counts,
-        labels=["Retained", "Churned"],
-        autopct="%1.1f%%",
-        startangle=90,
-        wedgeprops=dict(width=0.4)
-    )
-    ax.axis("equal")
+    minutes.plot(kind="bar", ax=ax)
+    ax.set_ylabel("Churn Rate (%)")
+    ax.set_xlabel("Average Monthly Minutes")
+    ax.grid(axis="y", alpha=0.3)
     st.pyplot(fig)
+    plt.close(fig)
 
-# ---- Churn by Internet Service ----
-service_churn = df.groupby(["internet_service", "churn"]).size().unstack()
+usage_change = churn_rate_by_band(
+    df, "change_mou",
+    bins=[-5000, -300, -100, -20, 20, 100, 300, 50000],
+    labels=["Below -300", "-300 to -100", "-100 to -20", "-20 to 20", "20 to 100", "100 to 300", "Above 300"],
+)
 
 with col4:
-    st.markdown("### Churn by Internet Service")
-    st.caption("Fiber optic customers show elevated churn risk")
+    st.markdown("### Churn by Change in Usage")
+    st.caption("Recent change in monthly minutes")
 
     fig, ax = plt.subplots()
-    service_churn.plot(kind="barh", ax=ax)
-    ax.set_xlabel("Customers")
-    ax.legend(["Retained", "Churned"])
+    usage_change.plot(kind="barh", ax=ax)
+    ax.set_xlabel("Churn Rate (%)")
+    ax.set_ylabel("Change in Monthly Minutes")
     ax.grid(axis="x", alpha=0.3)
     st.pyplot(fig)
+    plt.close(fig)
 
 # -----------------------------------------
 # DASHBOARD INSIGHT SUMMARY
 # -----------------------------------------
-st.markdown("""
+st.markdown(f"""
 <div class="soft-card">
-<h4>📌 Key Dashboard Insights</h4>
+<h4>📌 What the Data Shows</h4>
 <ul>
-<li><b>Early churn risk:</b> Customers in their first year are most likely to churn</li>
-<li><b>Contract stability:</b> Long-term contracts significantly reduce churn</li>
-<li><b>Service quality:</b> Fiber optic users require proactive engagement</li>
-<li><b>Revenue impact:</b> Churned customers represent significant lost revenue</li>
+<li><b>Tenure:</b> churn is {tenure['Up to 9']:.0f}% up to month 9 and {tenure['11-12']:.0f}% at months 11-12</li>
+<li><b>Handset age:</b> churn is {handset_age['181-270']:.0f}% at 181-270 days and {handset_age['271-365']:.0f}% at 271-365 days</li>
+<li><b>Usage level:</b> churn is {minutes['0-100']:.0f}% for the lightest users and {minutes['1001+']:.0f}% for the heaviest</li>
+<li><b>Falling usage:</b> churn is {usage_change['Below -300']:.0f}% after a large drop in minutes</li>
 </ul>
 </div>
 """, unsafe_allow_html=True)

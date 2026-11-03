@@ -55,7 +55,7 @@ def run_check(source):
 source = st.radio("Data to check against the training data", [LOGGED, HEALTHY, SIMULATED], horizontal=True)
 
 if source == SIMULATED:
-    st.caption("Demo data: the held-out test set with tenure and charges shifted on purpose. This is not real traffic.")
+    st.caption("Demo data: the held-out test set with handset age and minutes shifted on purpose. This is not real traffic.")
 
 with st.spinner("Checking for drift..."):
     summary, report_html = run_check(source)

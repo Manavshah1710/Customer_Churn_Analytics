@@ -27,7 +27,7 @@ st.markdown("""
 <p style="font-size:16px; line-height:1.7;">
 Customer churn is one of the most critical challenges for subscription-based businesses.
 Acquiring new customers is significantly more expensive than retaining existing ones.
-This project focuses on building a <b>end-to-end churn prediction system</b>
+This project focuses on building an <b>end-to-end churn prediction system</b>
 that enables businesses to identify at-risk customers early and take proactive retention actions.
 </p>
 
@@ -62,12 +62,12 @@ st.markdown("""
 <div class="soft-card">
 <h3>🧠 Solution Approach</h3>
 <ul>
-<li>Structured customer data using a relational SQL model</li>
-<li>Performed exploratory data analysis to uncover churn drivers</li>
-<li>Engineered predictive features from behavioral and service data</li>
-<li>Trained and evaluated multiple ML models</li>
-<li>Selected Random Forest for optimal recall and AUC</li>
-<li>Delivered insights through an interactive Streamlit application</li>
+<li>Loaded 100,000 customer records into SQLite and split them before any preprocessing</li>
+<li>Reduced 77 candidate columns to 15 using cross-validated permutation importance</li>
+<li>Excluded demographic and household columns for fairness</li>
+<li>Compared models with cross-validation and chose gradient boosting</li>
+<li>Explained each score with SHAP and served predictions through FastAPI</li>
+<li>Added data drift monitoring with Evidently AI</li>
 </ul>
 </div>
 """, unsafe_allow_html=True)
@@ -84,8 +84,8 @@ st.markdown("""
 <li><b>Interactive Dashboard:</b> KPIs, churn trends, and customer segmentation</li>
 <li><b>Churn Prediction:</b> Real-time risk scores for individual customers</li>
 <li><b>Business Insights:</b> Clear explanations of churn drivers</li>
-<li><b>Model Transparency:</b> ROC curve, AUC, and feature importance</li>
-<li><b>Modern UI:</b> Premium design with a dark theme</li>
+<li><b>Model Transparency:</b> Held-out metrics and SHAP feature importance</li>
+<li><b>Monitoring:</b> Data drift checks with a threshold alert</li>
 </ul>
 </div>
 """, unsafe_allow_html=True)
@@ -98,9 +98,10 @@ st.markdown("""
 <h3>🧰 Technology Stack</h3>
 <ul>
 <li><b>Languages:</b> Python, SQL</li>
-<li><b>Data & ML:</b> Pandas, NumPy, Scikit-learn</li>
+<li><b>Data & ML:</b> Pandas, NumPy, Scikit-learn, SHAP</li>
 <li><b>Visualization:</b> Matplotlib, Seaborn</li>
-<li><b>Application:</b> Streamlit</li>
+<li><b>Application:</b> Streamlit, FastAPI</li>
+<li><b>MLOps:</b> MLflow, Evidently AI, Docker, GitHub Actions</li>
 <li><b>Storage:</b> SQLite</li>
 </ul>
 </div>
@@ -113,13 +114,12 @@ st.markdown("---")
 # -----------------------------------------
 st.markdown("""
 <div class="soft-card">
-<h3>💼 Business Impact</h3>
+<h3>📊 Results</h3>
 <ul>
-<li>Identified high-risk customers before churn occurs</li>
-<li>Enabled targeted retention strategies</li>
-<li>Improved decision-making using data-driven insights</li>
-<li>Estimated significant revenue retention opportunity</li>
-<li>Reduced reliance on reactive customer support interventions</li>
+<li>Test AUC of 0.683, with a cross-validated AUC of 0.684</li>
+<li>About 77% of the customers flagged in the top 10% churned, against 50% overall</li>
+<li>Cutting 77 candidate columns to 15 cost about 0.001 AUC, which keeps the model practical to use</li>
+<li>Results come from a public dataset, not a live business deployment</li>
 </ul>
 </div>
 """, unsafe_allow_html=True)
@@ -131,11 +131,10 @@ st.markdown("""
 <div class="soft-card">
 <h3>📘 Key Learnings</h3>
 <ul>
-<li>Early customer lifecycle stages are the most vulnerable</li>
-<li>Contract length is the strongest churn predictor</li>
-<li>Service add-ons significantly reduce churn probability</li>
-<li>Model interpretability is as important as accuracy</li>
-<li>UX design greatly improves analytics adoption</li>
+<li>Churn jumps sharply around month 11 in this dataset</li>
+<li>Usage, handset age, and tenure carry the most signal</li>
+<li>A published data dictionary still has to be checked against the data</li>
+<li>Honest metrics on hard data are worth more than high scores on easy data</li>
 </ul>
 </div>
 """, unsafe_allow_html=True)
@@ -155,11 +154,11 @@ color:#E5E7EB;
 text-align:center;
 ">
 <p style="font-size:16px;">
-This project demonstrates the complete lifecycle of a data science solution —
-from raw data to deployed, user-friendly analytics.
+This project covers the lifecycle of a data science solution,
+from raw data to a containerized API and a user-friendly analytics app.
 </p>
 <p>
-<b>Designed for scalability, interpretability, and real-world business value.</b>
+<b>Dataset: Telecom Customer Churn - 100k Cleaned Records (Kaggle), CC BY-NC-SA 4.0. Non-commercial use only.</b>
 </p>
 </div>
 """, unsafe_allow_html=True)

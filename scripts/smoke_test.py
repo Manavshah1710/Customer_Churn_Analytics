@@ -9,12 +9,9 @@ import time
 import urllib.request
 
 CUSTOMER = {
-    "gender": "Female", "senior_citizen": 0, "partner": "No", "dependents": "No",
-    "tenure": 1, "contract": "Month-to-month", "paperless_billing": "Yes",
-    "payment_method": "Electronic check", "monthly_charges": 85.0,
-    "phone_service": "Yes", "multiple_lines": "No", "internet_service": "Fiber optic",
-    "online_security": "No", "online_backup": "No", "device_protection": "No",
-    "tech_support": "No", "streaming_tv": "No", "streaming_movies": "No",
+    "months": 11, "eqpdays": 700.0, "change_mou": -400.0, "mou_Mean": 80.0, "totmrc_Mean": 30.0,
+    "avgqty": 60.0, "hnd_price": 9.99, "uniqsubs": 1, "drop_vce_Mean": 1.0, "change_rev": -20.0,
+    "mou_cvce_Mean": 30.0, "avgrev": 30.0, "ovrmou_Mean": 0.0, "actvsubs": 1, "asl_flag": "N",
 }
 
 

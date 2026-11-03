@@ -14,29 +14,7 @@ from src import PROJECT_ROOT
 from src.predict import load_artifacts, predict_churn
 from src.explain import explain_customer
 from src.ui import apply_page_style
-from src.schema import (
-    Gender,
-    Partner,
-    Dependents,
-    ContractType,
-    PaperlessBilling,
-    PaymentMethod,
-    PhoneService,
-    MultipleLines,
-    InternetService,
-    OnlineSecurity,
-    OnlineBackup,
-    DeviceProtection,
-    TechSupport,
-    StreamingTV,
-    StreamingMovies,
-    TENURE_MIN,
-    TENURE_MAX,
-    MONTHLY_CHARGES_MIN,
-    MONTHLY_CHARGES_MAX,
-    TOTAL_CHARGES_MIN,
-    TOTAL_CHARGES_MAX,
-)
+from src.schema import ASL_FLAG_HELP, ASL_FLAG_LABEL, AslFlag, FEATURE_LABELS, FIELD_GROUPS, NUMERIC_FIELDS
 
 apply_page_style()
 
@@ -46,7 +24,7 @@ apply_page_style()
 st.markdown("""
 <h2 style="margin-bottom:4px;">🔮 Predict Customer Churn</h2>
 <p style="color:#64748b; margin-top:0;">
-Estimate customer churn risk in real time using the Random Forest model
+Estimate customer churn risk in real time using the gradient boosting model
 </p>
 """, unsafe_allow_html=True)
 
@@ -79,66 +57,28 @@ input_col, result_col = st.columns([1.2, 0.8], gap="large")
 
 with input_col:
     with st.form("prediction_form"):
-        st.markdown("### 📋 Customer Profile & Service Information")
+        st.markdown("### 📋 Customer Profile")
 
-        # Tab / Section 1: Demographics
-        st.markdown("##### 👤 Demographics")
-        demo_col1, demo_col2 = st.columns(2)
-        with demo_col1:
-            gender = st.selectbox("Gender", list(Gender.__args__))  # type: ignore
-            senior_citizen_opt = st.selectbox("Senior Citizen", ["No", "Yes"])
-            senior_citizen = 1 if senior_citizen_opt == "Yes" else 0
-        with demo_col2:
-            partner = st.selectbox("Partner", list(Partner.__args__))  # type: ignore
-            dependents = st.selectbox("Dependents", list(Dependents.__args__))  # type: ignore
+        raw_customer_dict = {}
+        for group, fields in FIELD_GROUPS.items():
+            st.markdown(f"##### {group}")
+            columns = st.columns(3)
+            for index, name in enumerate(fields):
+                spec = NUMERIC_FIELDS[name]
+                raw_customer_dict[name] = columns[index % 3].number_input(
+                    spec["label"],
+                    min_value=spec["min"],
+                    max_value=spec["max"],
+                    value=spec["default"],
+                    step=spec["step"],
+                    help=spec["help"],
+                )
 
-        st.markdown("---")
-
-        # Tab / Section 2: Account & Billing
-        st.markdown("##### 💳 Account & Billing Details")
-        acc_col1, acc_col2 = st.columns(2)
-        with acc_col1:
-            tenure = st.slider("Tenure (Months with Company)", min_value=TENURE_MIN, max_value=TENURE_MAX, value=12)
-            contract = st.selectbox(
-                "Contract Type",
-                list(ContractType.__args__)  # type: ignore
-            )
-            paperless_billing = st.selectbox("Paperless Billing", list(PaperlessBilling.__args__))  # type: ignore
-
-        with acc_col2:
-            payment_method = st.selectbox(
-                "Payment Method",
-                list(PaymentMethod.__args__)  # type: ignore
-            )
-            monthly_charges = st.number_input(
-                "Monthly Charges ($)", min_value=MONTHLY_CHARGES_MIN, max_value=MONTHLY_CHARGES_MAX, value=70.0, step=1.0
-            )
-            # No computed default: a default that changes resets typed values on submit
-            total_charges = st.number_input(
-                "Total Charges ($)", min_value=TOTAL_CHARGES_MIN, max_value=TOTAL_CHARGES_MAX, value=None, step=10.0,
-                placeholder="Auto if blank", help="Left blank, this is tenure × monthly charges."
-            )
-
-        st.markdown("---")
-
-        # Tab / Section 3: Subscribed Services
-        st.markdown("##### 🌐 Subscribed Services")
-        serv_col1, serv_col2, serv_col3 = st.columns(3)
-
-        with serv_col1:
-            phone_service = st.selectbox("Phone Service", list(PhoneService.__args__))  # type: ignore
-            multiple_lines = st.selectbox("Multiple Lines", list(MultipleLines.__args__))  # type: ignore
-            internet_service = st.selectbox("Internet Service", list(InternetService.__args__))  # type: ignore
-
-        with serv_col2:
-            online_security = st.selectbox("Online Security", list(OnlineSecurity.__args__))  # type: ignore
-            online_backup = st.selectbox("Online Backup", list(OnlineBackup.__args__))  # type: ignore
-            device_protection = st.selectbox("Device Protection", list(DeviceProtection.__args__))  # type: ignore
-
-        with serv_col3:
-            tech_support = st.selectbox("Tech Support", list(TechSupport.__args__))  # type: ignore
-            streaming_tv = st.selectbox("Streaming TV", list(StreamingTV.__args__))  # type: ignore
-            streaming_movies = st.selectbox("Streaming Movies", list(StreamingMovies.__args__))  # type: ignore
+        raw_customer_dict["asl_flag"] = st.selectbox(
+            ASL_FLAG_LABEL,
+            list(AslFlag.__args__),  # type: ignore
+            help=ASL_FLAG_HELP,
+        )
 
         st.markdown("<br>", unsafe_allow_html=True)
         submitted = st.form_submit_button("🔮 Predict Churn Risk", use_container_width=True)
@@ -150,31 +90,6 @@ with result_col:
     st.markdown("### 📊 Prediction Assessment")
 
     if submitted:
-        if total_charges is None:
-            total_charges = round(float(tenure * monthly_charges), 2)
-
-        raw_customer_dict = {
-            "gender": gender,
-            "senior_citizen": senior_citizen,
-            "partner": partner,
-            "dependents": dependents,
-            "tenure": tenure,
-            "contract": contract,
-            "paperless_billing": paperless_billing,
-            "payment_method": payment_method,
-            "monthly_charges": monthly_charges,
-            "total_charges": total_charges,
-            "phone_service": phone_service,
-            "multiple_lines": multiple_lines,
-            "internet_service": internet_service,
-            "online_security": online_security,
-            "online_backup": online_backup,
-            "device_protection": device_protection,
-            "tech_support": tech_support,
-            "streaming_tv": streaming_tv,
-            "streaming_movies": streaming_movies,
-        }
-
         churn_prob = predict_churn(
             raw_customer_dict,
             model=model,
@@ -237,7 +152,7 @@ with result_col:
             reasons = explanation["reasons"]
 
             # Build horizontal bar chart
-            features = [r["feature"].replace("_", " ").title() for r in reasons]
+            features = [FEATURE_LABELS[r["feature"]] for r in reasons]
             shap_vals = [r["shap_value"] for r in reasons]
             colors = ["#DC2626" if r["direction"] == "increases_risk" else "#059669" for r in reasons]
 
@@ -247,7 +162,7 @@ with result_col:
             ax.set_yticks(y_pos)
             ax.set_yticklabels(features[::-1], fontsize=9)
             ax.axvline(x=0, color="#94A3B8", linewidth=0.8)
-            ax.set_xlabel("SHAP value (impact on risk score)", fontsize=9)
+            ax.set_xlabel("SHAP value (log-odds impact on risk score)", fontsize=9)
             ax.set_title("Feature contributions to this prediction", fontsize=10, weight="bold")
             ax.grid(axis="x", linestyle="--", alpha=0.4)
             plt.tight_layout()
@@ -278,7 +193,7 @@ with result_col:
         ">
             <h4 style="margin:0 0 6px 0; color:#334155;">🤖 Retention recommendation (coming from the LLM layer)</h4>
             <p style="margin:0; font-size:0.85rem; color:#64748B;">
-                Personalized retention actions tailored to this customer's contract, tenure, and services will be generated dynamically here by the LLM reasoning layer.
+                Personalized retention actions tailored to this customer's usage, handset, and billing will be generated dynamically here by the LLM reasoning layer.
             </p>
         </div>
         """, unsafe_allow_html=True)
@@ -287,4 +202,4 @@ with result_col:
         st.info("👈 Fill in the customer profile and click **Predict Churn Risk** to generate a risk score.")
 
 st.markdown("<br><hr>", unsafe_allow_html=True)
-st.caption("ℹ️ Model: Balanced Random Forest Classifier (v2) • Evaluated on stratified hold-out test set.")
+st.caption("ℹ️ Model: HistGradientBoosting • Evaluated on stratified hold-out test set.")

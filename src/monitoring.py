@@ -10,15 +10,12 @@ from typing import Any, Dict, Tuple
 import pandas as pd
 
 from src import PROJECT_ROOT
-from src.explain import ALL_RAW_FEATURES
 from src.prediction_log import load_predictions
 from src.preprocess import load_data, split_data
+from src.schema import CATEGORICAL_FEATURES, MODEL_FEATURES, NUMERICAL_FEATURES
 
-NUMERICAL_FEATURES = ["tenure", "monthly_charges", "total_charges"]
-CATEGORICAL_FEATURES = [f for f in ALL_RAW_FEATURES if f not in NUMERICAL_FEATURES]
-
-# Measured over 20 healthy held-out samples: 3+ columns drift in 12/20 runs at 50 rows, 1/20 at 100, 0/20 at 200.
-MIN_RECORDS = 200
+# Measured over 20 healthy held-out samples: 3+ columns drift in 11/20 runs at 200 rows, 2/20 at 300, 0/20 at 500.
+MIN_RECORDS = 500
 # shortcut: 1 or 2 drifted columns show in the results but do not alert; lower this once real traffic shows the noise level
 ALERT_DRIFTED_COLUMNS = 3
 # Recent rows only, so old traffic cannot hide new drift
@@ -35,11 +32,11 @@ def load_reference_and_holdout() -> Tuple[pd.DataFrame, pd.DataFrame]:
 
 
 def simulate_drift(df: pd.DataFrame) -> pd.DataFrame:
-    """Demo only: newer customers paying more, because real drift does not exist in this static dataset."""
+    """Demo only: lighter users on older handsets, because real drift does not exist in this static dataset."""
     return df.assign(
-        tenure=df["tenure"] * 0.3,
-        monthly_charges=df["monthly_charges"] * 1.5,
-        total_charges=df["total_charges"] * 2,
+        eqpdays=df["eqpdays"] * 1.5,
+        mou_Mean=df["mou_Mean"] * 0.5,
+        mou_cvce_Mean=df["mou_cvce_Mean"] * 0.5,
     )
 
 
@@ -53,8 +50,8 @@ def check_drift(current: pd.DataFrame, reference: pd.DataFrame) -> Tuple[Dict[st
 
     definition = DataDefinition(numerical_columns=NUMERICAL_FEATURES, categorical_columns=CATEGORICAL_FEATURES)
     snapshot = Report([DataDriftPreset()], include_tests=True).run(
-        Dataset.from_pandas(current[ALL_RAW_FEATURES], data_definition=definition),
-        Dataset.from_pandas(reference[ALL_RAW_FEATURES], data_definition=definition),
+        Dataset.from_pandas(current[MODEL_FEATURES], data_definition=definition),
+        Dataset.from_pandas(reference[MODEL_FEATURES], data_definition=definition),
     )
 
     results = snapshot.dict()

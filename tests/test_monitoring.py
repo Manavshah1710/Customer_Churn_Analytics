@@ -5,9 +5,9 @@ Tests for data drift monitoring and the prediction log reader.
 import pytest
 
 from src import monitoring
-from src.explain import ALL_RAW_FEATURES
 from src.monitoring import MIN_RECORDS, check_drift, load_reference_and_holdout, simulate_drift
 from src.prediction_log import load_predictions, log_prediction
+from src.schema import MODEL_FEATURES
 
 
 @pytest.fixture(scope="module")
@@ -22,7 +22,7 @@ def test_healthy_holdout_does_not_alert(reference_and_holdout):
     assert summary["records"] == len(holdout)
     assert summary["alert"] is False
     assert summary["drifted_columns"] == []
-    assert {c["column"] for c in summary["columns"]} == set(ALL_RAW_FEATURES)
+    assert {c["column"] for c in summary["columns"]} == set(MODEL_FEATURES)
 
 
 def test_simulated_drift_alerts_on_the_shifted_columns(reference_and_holdout):
@@ -30,7 +30,7 @@ def test_simulated_drift_alerts_on_the_shifted_columns(reference_and_holdout):
     summary, _ = check_drift(simulate_drift(holdout), reference)
 
     assert summary["alert"] is True
-    assert summary["drifted_columns"] == ["monthly_charges", "tenure", "total_charges"]
+    assert summary["drifted_columns"] == ["eqpdays", "mou_Mean", "mou_cvce_Mean"]
 
 
 def test_alert_threshold_holds_at_the_minimum_sample_size(reference_and_holdout):
@@ -55,10 +55,10 @@ def test_load_predictions_returns_most_recent_oldest_first(tmp_path, monkeypatch
 
     _, holdout = reference_and_holdout
     customer = holdout.iloc[0].to_dict()
-    for tenure in (1, 2, 3):
-        log_prediction({**customer, "tenure": tenure}, {"probability": 0.5, "risk_level": "low"})
+    for months in (1, 2, 3):
+        log_prediction({**customer, "months": months}, {"probability": 0.5, "risk_level": "low"})
 
-    assert load_predictions(limit=2)["tenure"].tolist() == [2, 3]
+    assert load_predictions(limit=2)["months"].tolist() == [2, 3]
 
 
 def test_main_does_not_alert_without_enough_data(tmp_path, monkeypatch, capsys):

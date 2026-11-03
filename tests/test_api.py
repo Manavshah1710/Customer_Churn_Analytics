@@ -12,7 +12,8 @@ from fastapi.testclient import TestClient
 
 from api import main as api_main
 from api.main import app, _artifacts
-from src.explain import ALL_RAW_FEATURES, explain_customer
+from src.explain import explain_customer
+from src.schema import EXAMPLE_HIGH_RISK, EXAMPLE_LOW_RISK, MODEL_FEATURES
 
 
 # Test client - must be used as context manager for lifespan to run
@@ -23,23 +24,8 @@ def api_client():
 
 
 # Sanity check customers
-HIGH_RISK_CUSTOMER = {
-    "gender": "Female", "senior_citizen": 0, "partner": "No", "dependents": "No",
-    "tenure": 1, "contract": "Month-to-month", "paperless_billing": "Yes",
-    "payment_method": "Electronic check", "monthly_charges": 85.0, "total_charges": 85.0,
-    "phone_service": "Yes", "multiple_lines": "No", "internet_service": "Fiber optic",
-    "online_security": "No", "online_backup": "No", "device_protection": "No",
-    "tech_support": "No", "streaming_tv": "No", "streaming_movies": "No",
-}
-
-LOW_RISK_CUSTOMER = {
-    "gender": "Male", "senior_citizen": 0, "partner": "Yes", "dependents": "Yes",
-    "tenure": 60, "contract": "Two year", "paperless_billing": "No",
-    "payment_method": "Credit card (automatic)", "monthly_charges": 60.0, "total_charges": 3600.0,
-    "phone_service": "Yes", "multiple_lines": "Yes", "internet_service": "DSL",
-    "online_security": "Yes", "online_backup": "Yes", "device_protection": "Yes",
-    "tech_support": "Yes", "streaming_tv": "No", "streaming_movies": "No",
-}
+HIGH_RISK_CUSTOMER = EXAMPLE_HIGH_RISK
+LOW_RISK_CUSTOMER = EXAMPLE_LOW_RISK
 
 
 class TestHealth:
@@ -60,7 +46,7 @@ class TestHealth:
         assert "max_depth" in data
         assert "n_features" in data
         assert "n_estimators" in data
-        assert "class_weight" in data
+        assert "learning_rate" in data
 
     def test_health_artifacts_loaded(self, api_client):
         """Artifacts and explainer should be loaded in test environment."""
@@ -68,9 +54,9 @@ class TestHealth:
         data = response.json()
         assert data["artifacts_loaded"] is True
         assert data["explainer_loaded"] is True
-        assert data["model_type"] == "rf_balanced"
-        assert data["max_depth"] == 8
-        assert data["n_features"] == 45
+        assert data["model_type"] == "hist_gradient_boosting"
+        assert data["max_depth"] == 6
+        assert data["n_features"] == 16
 
     def test_health_returns_503_when_model_missing(self, api_client, monkeypatch):
         """A missing model must fail the health check, not report made-up values."""
@@ -187,29 +173,29 @@ class TestPredict:
         low_prob = low_resp.json()["probability"]
 
         assert high_prob > 0.8  # High risk
-        assert low_prob < 0.1   # Low risk
-        assert high_prob - low_prob > 0.5  # Significant gap
+        assert low_prob < 0.5   # Low risk
+        assert high_prob - low_prob > 0.4  # Significant gap
 
 
 class TestPredictionLog:
     def test_predict_logs_all_inputs_score_and_model_version(self, api_client, tmp_path, monkeypatch):
-        """Each prediction is stored with real types, using the total_charges the model actually saw."""
+        """Each prediction is stored with real types, keeping gaps as gaps."""
         db_path = tmp_path / "log.db"
         monkeypatch.setenv("PREDICTION_LOG_PATH", str(db_path))
-        customer = {k: v for k, v in HIGH_RISK_CUSTOMER.items() if k != "total_charges"}
+        customer = {**HIGH_RISK_CUSTOMER, "change_mou": None}
 
         prediction = api_client.post("/predict", json=customer).json()
 
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
-        rows = conn.execute("SELECT *, typeof(tenure) AS tenure_type FROM predictions").fetchall()
+        rows = conn.execute("SELECT *, typeof(months) AS months_type FROM predictions").fetchall()
         conn.close()
 
         assert len(rows) == 1
         row = rows[0]
-        for feature in ALL_RAW_FEATURES:
-            assert row[feature] == HIGH_RISK_CUSTOMER[feature], feature
-        assert row["tenure_type"] == "integer"
+        for feature in MODEL_FEATURES:
+            assert row[feature] == customer[feature], feature
+        assert row["months_type"] == "integer"
         assert row["probability"] == prediction["probability"]
         assert row["risk_level"] == prediction["risk_level"]
         assert len(row["model_version"]) == 12
@@ -220,7 +206,7 @@ class TestPredictionLog:
         db_path = tmp_path / "log.db"
         monkeypatch.setenv("PREDICTION_LOG_PATH", str(db_path))
 
-        response = api_client.post("/predict", json={**HIGH_RISK_CUSTOMER, "tenure": -5})
+        response = api_client.post("/predict", json={**HIGH_RISK_CUSTOMER, "months": -5})
 
         assert response.status_code == 422
         assert not db_path.exists()
@@ -241,24 +227,29 @@ class TestPredictValidation:
     def test_missing_field_returns_422(self, api_client):
         """Missing required field returns 422."""
         bad_customer = HIGH_RISK_CUSTOMER.copy()
-        del bad_customer["streaming_movies"]
+        del bad_customer["asl_flag"]
         response = api_client.post("/predict", json=bad_customer)
         assert response.status_code == 422
         data = response.json()
         assert "detail" in data
-        assert any("streaming_movies" in str(e) for e in data["detail"])
+        assert any("asl_flag" in str(e) for e in data["detail"])
 
     def test_bad_enum_value_returns_422(self, api_client):
         """Invalid enum value returns 422."""
         bad_customer = HIGH_RISK_CUSTOMER.copy()
-        bad_customer["gender"] = "Invalid"
+        bad_customer["asl_flag"] = "Invalid"
         response = api_client.post("/predict", json=bad_customer)
         assert response.status_code == 422
+
+    def test_null_value_is_accepted_as_a_gap(self, api_client):
+        """Real records have gaps, so null must score instead of failing."""
+        response = api_client.post("/predict", json={**HIGH_RISK_CUSTOMER, "change_mou": None, "asl_flag": None})
+        assert response.status_code == 200
 
     def test_negative_tenure_returns_422(self, api_client):
         """Negative tenure returns 422."""
         bad_customer = HIGH_RISK_CUSTOMER.copy()
-        bad_customer["tenure"] = -5
+        bad_customer["months"] = -5
         response = api_client.post("/predict", json=bad_customer)
         assert response.status_code == 422
 
@@ -286,7 +277,7 @@ class TestModelInfo:
             "top_10_decile_capture_rate", "churners_caught_in_top_10",
             "total_churners_in_test", "threshold_high_risk",
             "threshold_moderate_risk", "confusion_matrix",
-            "model_type", "max_depth", "n_estimators", "class_weight"
+            "model_type", "max_depth", "n_estimators", "learning_rate"
         ]
         for field in expected_fields:
             assert field in data, f"Missing field: {field}"

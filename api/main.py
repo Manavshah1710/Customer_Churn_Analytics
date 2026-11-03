@@ -14,6 +14,7 @@ from src import PROJECT_ROOT
 from src.predict import load_artifacts
 from src.explain import explain_customer, get_explainer
 from src.prediction_log import log_prediction
+from src.schema import EXAMPLE_HIGH_RISK
 from api.schemas import (
     CustomerInput,
     PredictionResponse,
@@ -61,15 +62,7 @@ async def lifespan(app: FastAPI):
         logger.info("SHAP explainer built")
 
         # Warm-up: run one explanation to avoid cold-start latency on first request
-        warmup_customer = {
-            "gender": "Female", "senior_citizen": 0, "partner": "No", "dependents": "No",
-            "tenure": 1, "contract": "Month-to-month", "paperless_billing": "Yes",
-            "payment_method": "Electronic check", "monthly_charges": 85.0, "total_charges": 85.0,
-            "phone_service": "Yes", "multiple_lines": "No", "internet_service": "Fiber optic",
-            "online_security": "No", "online_backup": "No", "device_protection": "No",
-            "tech_support": "No", "streaming_tv": "No", "streaming_movies": "No",
-        }
-        _ = explain_customer(warmup_customer, top_k=5)
+        _ = explain_customer(EXAMPLE_HIGH_RISK, top_k=5)
         _artifacts["warmup_done"] = True
         logger.info("Warm-up explanation completed")
 
@@ -127,24 +120,20 @@ def health(response: Response):
         max_depth=m.get("max_depth"),
         n_features=model.n_features_in_ if model is not None else None,
         n_estimators=m.get("n_estimators"),
-        class_weight=m.get("class_weight"),
+        learning_rate=m.get("learning_rate"),
     )
 
 
 @app.post("/predict", response_model=PredictionResponse)
 def predict(customer: CustomerInput, top_k: int = Query(5, ge=1, le=10)):
     """
-    Predict churn probability and return SHAP explanation.
+    Predict a churn risk score and return SHAP explanation.
     Returns the exact same schema as explain_customer().
     """
     _check_artifacts()
 
     # Convert Pydantic model to dict
     raw_input = customer.model_dump()
-
-    # Default total_charges to tenure * monthly_charges if not provided
-    if raw_input["total_charges"] is None:
-        raw_input["total_charges"] = round(float(raw_input["tenure"] * raw_input["monthly_charges"]), 2)
 
     try:
         # Call the shared explain_customer function (which loads model/preprocessor internally)
@@ -197,7 +186,7 @@ def model_info():
         model_type=m["model_type"],
         max_depth=m["max_depth"],
         n_estimators=m["n_estimators"],
-        class_weight=m["class_weight"],
+        learning_rate=m["learning_rate"],
     )
 
 

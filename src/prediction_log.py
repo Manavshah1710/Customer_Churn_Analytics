@@ -15,9 +15,9 @@ from typing import Any, Dict
 import pandas as pd
 
 from src import PROJECT_ROOT
-from src.explain import ALL_RAW_FEATURES
+from src.schema import MODEL_FEATURES
 
-COLUMNS = ALL_RAW_FEATURES + ["probability", "risk_level", "model_version", "created_at"]
+COLUMNS = MODEL_FEATURES + ["probability", "risk_level", "model_version", "created_at"]
 
 
 @lru_cache(maxsize=1)
@@ -46,7 +46,7 @@ def log_prediction(raw_input: Dict[str, Any], result: Dict[str, Any]) -> None:
     db_path = _log_path()
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    values = [raw_input[feature] for feature in ALL_RAW_FEATURES] + [
+    values = [raw_input[feature] for feature in MODEL_FEATURES] + [
         result["probability"],
         result["risk_level"],
         _model_version(),
