@@ -73,6 +73,9 @@ Thumbs.db
 # Large generated files (SQLite database)
 data/churn.db
 
+# Prediction log: holds customer inputs, never commit
+data/predictions.db*
+
 # Data and models - user specifically said not to ignore these
 # data/raw/*  # if you keep raw CSV outside repo
 # models/ is NOT ignored per user request

@@ -17,6 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - `predict.py` (cached artifact loader, predict_churn inference)
   - `data_ingest.py` (DB creation/load), `sql_schema.sql` (DDL)
   - `ui.py` (`apply_page_style()`: page config and CSS, call first on every page)
+  - `prediction_log.py` (appends each `/predict` call to `data/predictions.db`; set `PREDICTION_LOG_PATH` to move it)
 - `models/` — ML artifacts: `churn_model.pkl`, `preprocessor.pkl` (ColumnTransformer), `metrics.json`
 - `tests/` — Test suite: `test_pipeline.py` (unit/leakage tests), `test_predict.py` (inference), `test_app.py` (Streamlit AppTest), `test_mlflow.py` (MLflow tracking & registry), `test_proxy.py` (failover proxy)
 - `data/` — SQLite DB (`churn.db`), raw CSV in `data/raw/`

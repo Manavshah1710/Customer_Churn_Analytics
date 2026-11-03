@@ -3,13 +3,16 @@ Tests for FastAPI service.
 """
 
 import json
+import sqlite3
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
+from api import main as api_main
 from api.main import app, _artifacts
-from src.explain import explain_customer
+from src.explain import ALL_RAW_FEATURES, explain_customer
 
 
 # Test client - must be used as context manager for lifespan to run
@@ -186,6 +189,52 @@ class TestPredict:
         assert high_prob > 0.8  # High risk
         assert low_prob < 0.1   # Low risk
         assert high_prob - low_prob > 0.5  # Significant gap
+
+
+class TestPredictionLog:
+    def test_predict_logs_all_inputs_score_and_model_version(self, api_client, tmp_path, monkeypatch):
+        """Each prediction is stored with real types, using the total_charges the model actually saw."""
+        db_path = tmp_path / "log.db"
+        monkeypatch.setenv("PREDICTION_LOG_PATH", str(db_path))
+        customer = {k: v for k, v in HIGH_RISK_CUSTOMER.items() if k != "total_charges"}
+
+        prediction = api_client.post("/predict", json=customer).json()
+
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute("SELECT *, typeof(tenure) AS tenure_type FROM predictions").fetchall()
+        conn.close()
+
+        assert len(rows) == 1
+        row = rows[0]
+        for feature in ALL_RAW_FEATURES:
+            assert row[feature] == HIGH_RISK_CUSTOMER[feature], feature
+        assert row["tenure_type"] == "integer"
+        assert row["probability"] == prediction["probability"]
+        assert row["risk_level"] == prediction["risk_level"]
+        assert len(row["model_version"]) == 12
+        assert datetime.fromisoformat(row["created_at"]).utcoffset() == timedelta(0)
+
+    def test_rejected_request_is_not_logged(self, api_client, tmp_path, monkeypatch):
+        """Invalid input never reaches the log."""
+        db_path = tmp_path / "log.db"
+        monkeypatch.setenv("PREDICTION_LOG_PATH", str(db_path))
+
+        response = api_client.post("/predict", json={**HIGH_RISK_CUSTOMER, "tenure": -5})
+
+        assert response.status_code == 422
+        assert not db_path.exists()
+
+    def test_log_failure_does_not_break_predict(self, api_client, monkeypatch):
+        """A broken log must not cost the caller their prediction."""
+        def fail(raw_input, result):
+            raise sqlite3.OperationalError("database is locked")
+        monkeypatch.setattr(api_main, "log_prediction", fail)
+
+        response = api_client.post("/predict", json=HIGH_RISK_CUSTOMER)
+
+        assert response.status_code == 200
+        assert response.json()["risk_level"] == "high"
 
 
 class TestPredictValidation:

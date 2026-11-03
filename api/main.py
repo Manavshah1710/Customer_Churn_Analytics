@@ -13,6 +13,7 @@ from fastapi import FastAPI, HTTPException, Query, Response
 from src import PROJECT_ROOT
 from src.predict import load_artifacts
 from src.explain import explain_customer, get_explainer
+from src.prediction_log import log_prediction
 from api.schemas import (
     CustomerInput,
     PredictionResponse,
@@ -148,6 +149,12 @@ def predict(customer: CustomerInput, top_k: int = Query(5, ge=1, le=10)):
     try:
         # Call the shared explain_customer function (which loads model/preprocessor internally)
         result = explain_customer(raw_input, top_k=top_k)
+
+        # A monitoring failure must never break a prediction
+        try:
+            log_prediction(raw_input, result)
+        except Exception as e:
+            logger.error(f"Prediction logging failed: {type(e).__name__}")
 
         # Convert to response model
         return PredictionResponse(
