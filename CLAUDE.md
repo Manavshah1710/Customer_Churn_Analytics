@@ -3,19 +3,20 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
-**Today**: Telco churn prediction model (Random Forest) + Streamlit app with 5 pages + SQLite database. Data ingested from CSV into normalized schema (customers/accounts/services). Model artifacts (.pkl) saved in models/.
+**Today**: Telecom churn prediction model (HistGradientBoosting on 15 columns of a 100,000-row Kaggle dataset) + FastAPI service + Streamlit app with 6 pages + SQLite database. The CSV is loaded into one `customers` table. Model artifacts (.pkl) saved in models/. Resume and portfolio project; the dataset is CC BY-NC-SA 4.0, so it must stay non-commercial.
 
-**Churn 2.0 Adds**: SHAP explainability, LLM retention recommendations (Claude API), FastAPI microservice, Docker containerization, GitHub Actions CI/CD, MLflow experiment tracking, Evidently AI drift monitoring.
+**Built**: SHAP explainability, FastAPI microservice, Docker containerization, GitHub Actions CI, MLflow experiment tracking, Evidently AI drift monitoring. **Planned**: public deployment, CSV upload and scoring, LLM retention recommendations (Claude API).
 
 ## Folder Structure & Purpose
 - `app.py` — Streamlit multipage app entry point (navigation shell)
 - `pages/` — Streamlit pages: 1_Dashboard.py, 2_Predict_Churn.py, 3_Insights.py, 4_Model_Info.py, 5_About.py, 6_Monitoring.py
 - `src/` — Reusable logic:
   - `preprocess.py` (data loading, stratified split, ColumnTransformer feature engineering)
-  - `train.py` (RandomForest training, evaluation metrics, threshold calculation, MLflow tracking)
+  - `schema.py` (the 15 model columns: limits, labels, meanings; shared by form, API and training)
+  - `train.py` (HistGradientBoosting training, evaluation metrics, threshold calculation, MLflow tracking)
   - `experiments.py` (comparative benchmark experiments with 5-fold CV)
   - `predict.py` (cached artifact loader, predict_churn inference)
-  - `data_ingest.py` (DB creation/load), `sql_schema.sql` (DDL)
+  - `data_ingest.py` (loads the CSV into SQLite)
   - `ui.py` (`apply_page_style()`: page config and CSS, call first on every page)
   - `prediction_log.py` (appends each `/predict` call to `data/predictions.db`; set `PREDICTION_LOG_PATH` to move it)
   - `monitoring.py` (Evidently drift check against the training data; alert rule and CLI)
@@ -64,8 +65,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Preprocess format**: `preprocessor.pkl` stores a fitted `ColumnTransformer` with `set_output(transform="pandas")`.
 - **Write pytest tests** for new features and verify `pytest` passes before committing.
 - **Never hardcode API keys**; use `.env` (ensure `.env` in `.gitignore`).
-- **Never commit changes to `models/*.pkl` without asking me first.** Each version adds ~30 MB to git history. Experiments must not overwrite the production artifacts (`promote=False`).
-- **MLflow Tracking**: Wrapped under experiment `"churn-2.0"`. Only `promote=True` runs assign the `"champion"` alias to `"churn-rf"` and update `models/`. Experiment runs (`promote=False`) are logged for comparison without touching production artifacts.
+- **Never commit changes to `models/*.pkl` without asking me first.** Each version adds to git history. Experiments must not overwrite the production artifacts (`promote=False`).
+- **MLflow Tracking**: Wrapped under experiment `"churn-2.0"`. Only `promote=True` runs assign the `"champion"` alias to `"churn-model"` and update `models/`. Experiment runs (`promote=False`) are logged for comparison without touching production artifacts.
 ---
 
 ## SHAP Explainability — `explain_customer` Schema
@@ -73,28 +74,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 The `src/explain.py` module provides `explain_customer(raw_input: dict, top_k: int = 5) -> dict`.
 
 ### Input
-`raw_input`: Dictionary with all 19 raw feature keys:
-- **demographics**: `gender` (str), `senior_citizen` (0/1), `partner` (str), `dependents` (str)
-- **account**: `tenure` (int), `contract` (str), `paperless_billing` (str), `payment_method` (str), `monthly_charges` (float), `total_charges` (float)
-- **services**: `phone_service` (str), `multiple_lines` (str), `internet_service` (str), `online_security` (str), `online_backup` (str), `device_protection` (str), `tech_support` (str), `streaming_tv` (str), `streaming_movies` (str)
+`raw_input`: Dictionary with the 15 keys in `src/schema.py` `MODEL_FEATURES`. A value may be `None`; gaps are filled the same way as in training.
+- **tenure and handset**: `months` (int), `eqpdays` (float), `hnd_price` (float)
+- **usage**: `mou_Mean`, `mou_cvce_Mean`, `avgqty`, `change_mou`, `ovrmou_Mean`, `drop_vce_Mean` (float)
+- **billing**: `totmrc_Mean`, `avgrev`, `change_rev` (float)
+- **account**: `uniqsubs` (int), `actvsubs` (int), `asl_flag` ("N" or "Y")
 
 ### Output Schema
 ```json
 {
-  "probability": 0.8923,
-  "base_value": 0.4995,
+  "probability": 0.871,
+  "base_value": -0.0201,
   "risk_level": "high",
   "reasons": [
     {
-      "feature": "contract",
-      "customer_value": "Month-to-month",
-      "shap_value": 0.0901,
-      "direction": "increases_risk"
-    },
-    {
-      "feature": "tenure",
-      "customer_value": 1,
-      "shap_value": 0.0735,
+      "feature": "change_mou",
+      "customer_value": -400.0,
+      "shap_value": 0.892,
       "direction": "increases_risk"
     }
     // ... up to top_k entries
@@ -102,13 +98,13 @@ The `src/explain.py` module provides `explain_customer(raw_input: dict, top_k: i
 }
 ```
 
-- **probability**: Model's predicted churn probability for this customer
-- **base_value**: Expected model output (mean prediction over training data)
+- **probability**: The model's score from 0 to 1. Show it as a risk score, never as a chance of churning: the training data is an even 50/50 sample
+- **base_value**: Expected model output, in log-odds
 - **risk_level**: `"high"` (≥ P90 threshold), `"moderate"` (≥ P70 threshold), `"low"` (below P70) — thresholds from `models/metrics.json`
 - **reasons**: Top `top_k` raw features by absolute SHAP value, each with:
   - `feature`: Raw feature name (one-hot dummies summed)
   - `customer_value`: The customer's actual value for this feature
-  - `shap_value`: Signed SHAP contribution (positive = increases churn risk)
+  - `shap_value`: Signed SHAP contribution in log-odds (positive = increases churn risk). `sigmoid(base_value + all shap values) == probability`
   - `direction`: `"increases_risk"` or `"decreases_risk"`
 
 ### Functions
@@ -119,17 +115,9 @@ The `src/explain.py` module provides `explain_customer(raw_input: dict, top_k: i
 ### Example
 ```python
 from src.explain import explain_customer
+from src.schema import EXAMPLE_HIGH_RISK
 
-customer = {
-    "gender": "Female", "senior_citizen": 0, "partner": "No", "dependents": "No",
-    "tenure": 1, "contract": "Month-to-month", "paperless_billing": "Yes",
-    "payment_method": "Electronic check", "monthly_charges": 85.0, "total_charges": 85.0,
-    "phone_service": "Yes", "multiple_lines": "No", "internet_service": "Fiber optic",
-    "online_security": "No", "online_backup": "No", "device_protection": "No",
-    "tech_support": "No", "streaming_tv": "No", "streaming_movies": "No",
-}
-
-result = explain_customer(customer)
+result = explain_customer(EXAMPLE_HIGH_RISK)
 # result["risk_level"] == "high"
-# result["reasons"][0]["feature"] == "contract"
+# result["reasons"][0]["feature"] == "change_mou"
 ```
