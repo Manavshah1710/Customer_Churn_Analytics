@@ -380,5 +380,11 @@ The project includes custom tooling for continuous AI pair-programming:
 
 ## 📄 License & Attribution
 
-This project is open-source and intended for portfolio, educational, and enterprise demonstration purposes.
-Data source: IBM Telco Customer Churn sample dataset.
+This is a resume and portfolio project, intended for educational and demonstration purposes. The code has no open-source licence.
+
+Data sources:
+
+- [Telecom Customer Churn - 100k Cleaned Records](https://www.kaggle.com/datasets/shenoudasafwat/telecom-customer-churn-100k-cleaned-records) by Kaggle user `shenoudasafwat`, licensed under [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/), provided as is with no warranty. Stored at `data/raw/Telecom_customer churn_100k.csv`. Changes made: this project loads it into SQLite and trains on 15 of its columns.
+- IBM Telco Customer Churn sample dataset (earlier versions of this project).
+
+Non-commercial use only: models trained on the 100k dataset, and any modified versions of that data, are shared under the same CC BY-NC-SA 4.0 licence and may not be used for commercial purposes.
