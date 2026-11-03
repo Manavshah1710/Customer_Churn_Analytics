@@ -25,7 +25,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `docs/` — `project_definition.md` (business context)
 - `.streamlit/` — Streamlit theme config
 
-## Tech Stack (from requirements.txt)
+## Tech Stack (from requirements.txt and requirements-api.txt)
 - streamlit==1.32.0
 - pandas==2.2.1
 - numpy==1.26.4
@@ -51,9 +51,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Open MLflow UI**: `mlflow ui --backend-store-uri sqlite:///mlflow.db`
 - **Run tests**: `pytest` or `python -m pytest`
 - **Initialize DB**: `python src/data_ingest.py` (creates/loads churn.db)
+- **Run API in Docker**: `docker build -t churn-api .` then `docker run -p 8000:8000 -v churn-log:/app/data churn-api` (the volume keeps the prediction log)
+- **Smoke test a running API**: `python scripts/smoke_test.py [base_url]`
 
 ## Working Rules
 - **Use .venv**: Run commands with the `.venv` python (Python 3.12, scikit-learn 1.4.2) to match serialized artifacts.
+- **Dependencies**: anything `api/` or `src/` needs at runtime goes in `requirements-api.txt` (the Docker image installs only this); tools and Streamlit go in `requirements.txt`.
 - **Never modify/delete** in `data/raw/` (source data immutability).
 - **Put reusable logic in `src/`**, not in notebooks or Streamlit pages.
 - **Preprocess format**: `preprocessor.pkl` stores a fitted `ColumnTransformer` with `set_output(transform="pandas")`.

@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-api.txt
+      - run: pip install ruff==0.17.3
+      - run: ruff check --select F .
+      - run: pip install -r requirements.txt
+      - run: pip check
+      - run: python src/data_ingest.py
+      - run: python -m pytest
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker build -t churn-api .
+      - run: docker run -d --name churn-api -p 8000:8000 churn-api
+      - run: python3 scripts/smoke_test.py
+      # Logging failures are silent by design, so confirm the non-root user can write the log
+      - run: >
+          docker exec churn-api python -c
+          "import sqlite3; n = sqlite3.connect('data/predictions.db').execute('SELECT COUNT(*) FROM predictions').fetchone()[0]; assert n == 1, n"
+      - if: always()
+        run: docker logs churn-api
