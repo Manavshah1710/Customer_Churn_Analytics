@@ -14,51 +14,29 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-NUMERIC_COLUMNS: List[str] = ["tenure", "monthly_charges", "total_charges", "senior_citizen"]
+from src.schema import MODEL_FEATURES, NUMERICAL_FEATURES
+
+NUMERIC_COLUMNS: List[str] = NUMERICAL_FEATURES
+MISSING_CATEGORY = "missing"
+
+
+def _clean_text_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Strips text and gives gaps one label, so training and inference encode them the same way."""
+    for col in df.select_dtypes(include=["object", "string"]).columns:
+        df[col] = df[col].where(df[col].notna(), MISSING_CATEGORY).astype(str).str.strip()
+    return df
 
 
 def load_data(db_path: str = "data/churn.db") -> pd.DataFrame:
-    """
-    Loads raw joined customer, account, and service records from the SQLite database.
-    Cleans whitespace, encodes the target variable, drops customer_id,
-    and coerces numeric columns to numeric types.
-    """
+    """Loads the model's input columns and the churn target from the SQLite database."""
     if not os.path.exists(db_path):
         raise FileNotFoundError(f"Database file not found at {db_path}")
 
     conn = sqlite3.connect(db_path)
-    query = """
-    SELECT
-        c.customer_id, c.gender, c.senior_citizen, c.partner, c.dependents, c.tenure, c.churn,
-        a.contract, a.paperless_billing, a.payment_method, a.monthly_charges, a.total_charges,
-        s.phone_service, s.multiple_lines, s.internet_service, s.online_security,
-        s.online_backup, s.device_protection, s.tech_support, s.streaming_tv,
-        s.streaming_movies
-    FROM customers c
-    JOIN accounts a ON c.customer_id = a.customer_id
-    JOIN services s ON c.customer_id = s.customer_id;
-    """
-    df = pd.read_sql_query(query, conn)
+    df = pd.read_sql_query(f"SELECT {', '.join(MODEL_FEATURES)}, churn FROM customers", conn)
     conn.close()
 
-    # Clean whitespace on string columns
-    for col in df.select_dtypes(include=["object", "string"]).columns:
-        df[col] = df[col].astype(str).str.strip()
-
-    # Encode target column
-    if "churn" in df.columns:
-        df["churn"] = df["churn"].map({"Yes": 1, "No": 0})
-
-    # Drop non-feature identifier
-    if "customer_id" in df.columns:
-        df = df.drop(columns=["customer_id"])
-
-    # Numeric conversion
-    for col in ["monthly_charges", "total_charges", "tenure"]:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-
-    return df
+    return _clean_text_columns(df)
 
 
 def split_data(
@@ -168,13 +146,11 @@ def transform_new(df: pd.DataFrame, artifacts: Dict[str, Any]) -> pd.DataFrame:
     df_copy = df.copy()
 
     # Remove non-feature columns if present
-    for col in ["customer_id", "churn"]:
+    for col in ["Customer_ID", "churn"]:
         if col in df_copy.columns:
             df_copy = df_copy.drop(columns=[col])
 
-    # Strip string whitespace
-    for col in df_copy.select_dtypes(include=["object", "string"]).columns:
-        df_copy[col] = df_copy[col].astype(str).str.strip()
+    df_copy = _clean_text_columns(df_copy)
 
     # Handle numeric columns: coerce types and fill missing columns with NaN for SimpleImputer
     num_cols = artifacts["num_cols"]
@@ -188,7 +164,7 @@ def transform_new(df: pd.DataFrame, artifacts: Dict[str, Any]) -> pd.DataFrame:
     cat_cols = artifacts.get("cat_cols", [])
     for col in cat_cols:
         if col not in df_copy.columns:
-            df_copy[col] = "missing"
+            df_copy[col] = MISSING_CATEGORY
 
     transformed = preprocessor.transform(df_copy)
     return transformed

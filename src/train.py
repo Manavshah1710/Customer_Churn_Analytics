@@ -1,7 +1,6 @@
 """
 Model training, evaluation, and MLflow experiment tracking pipeline for Customer Churn Analytics.
-Trains Random Forest with class_weight='balanced' (default primary model)
-or optional SMOTE resampling, evaluates on untouched test data,
+Trains HistGradientBoosting, evaluates on untouched test data,
 computes held-out metrics and risk thresholds, logs runs and artifacts to MLflow,
 and promotes production artifacts to models/ when promote=True.
 """
@@ -24,10 +23,9 @@ import mlflow.sklearn
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from imblearn.over_sampling import SMOTE
 from mlflow.models import infer_signature
 from mlflow.tracking import MlflowClient
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score
 
 # Ensure project root is in sys.path
@@ -154,23 +152,21 @@ def evaluate_model(
 def train_model(
     db_path: str = "data/churn.db",
     output_dir: str = "models",
-    use_smote: bool = False,
     promote: bool = True,
     tracking_uri: Optional[str] = None,
     experiment_name: str = "churn-2.0",
     run_name: Optional[str] = None,
     n_estimators: int = 300,
-    max_depth: Optional[int] = 8,
-    model: Optional[Any] = None,
+    max_depth: Optional[int] = 6,
+    learning_rate: float = 0.05,
     extra_params: Optional[Dict[str, Any]] = None,
     extra_metrics: Optional[Dict[str, float]] = None,
 ) -> Tuple[Any, Dict[str, Any], Dict[str, Any]]:
     """
     Executes end-to-end training, evaluation, and MLflow logging:
-    - Primary default: Random Forest with class_weight='balanced'
-    - Optional: Random Forest with SMOTE oversampling or custom passed estimator
+    - Fits HistGradientBoosting; n_estimators sets its boosting iterations.
     - Logs params, metrics, confusion matrix, feature names, and sklearn model to MLflow.
-    - When promote=True: registers 'churn-rf' with alias 'champion' and writes models/ artifacts.
+    - When promote=True: registers 'churn-model' with alias 'champion' and writes models/ artifacts.
     - When promote=False: strictly leaves models/ and model registry untouched.
     """
     print(f"1. Loading raw dataset from '{db_path}'...")
@@ -184,33 +180,22 @@ def train_model(
     print("3. Building features and preprocessing...")
     X_train_proc, X_test_proc, preprocessor = build_features(X_train, X_test)
 
-    # Determine model configuration
-    if model is None:
-        model_type = "rf_smote" if use_smote else "rf_balanced"
-        model = RandomForestClassifier(
-            n_estimators=n_estimators,
-            max_depth=max_depth,
-            class_weight=None if use_smote else "balanced",
-            random_state=42,
-            n_jobs=-1,
-        )
-    else:
-        model_type = type(model).__name__
-
-    if use_smote:
-        X_train_fit, y_train_fit = SMOTE(random_state=42).fit_resample(X_train_proc, y_train)
-    else:
-        X_train_fit, y_train_fit = X_train_proc, y_train
-    model.fit(X_train_fit, y_train_fit)
+    model_type = "hist_gradient_boosting"
+    model = HistGradientBoostingClassifier(
+        max_iter=n_estimators,
+        max_depth=max_depth,
+        learning_rate=learning_rate,
+        random_state=42,
+    )
+    model.fit(X_train_proc, y_train)
 
     print(f"\n4. Trained model: {model_type}...")
     print("5. Evaluating on untouched test data...")
     metrics = evaluate_model(model, X_test_proc, y_test)
     metrics["model_type"] = model_type
-    metrics["n_estimators"] = getattr(model, "n_estimators", n_estimators)
-    metrics["max_depth"] = getattr(model, "max_depth", max_depth)
-    metrics["class_weight"] = "balanced" if getattr(model, "class_weight", None) == "balanced" else str(getattr(model, "class_weight", None))
-    metrics["use_smote"] = use_smote
+    metrics["n_estimators"] = n_estimators
+    metrics["max_depth"] = max_depth
+    metrics["learning_rate"] = learning_rate
 
     print("\n" + "=" * 60)
     print("                 MODEL EVALUATION METRICS")
@@ -240,8 +225,7 @@ def train_model(
             "model_type": model_type,
             "n_estimators": str(metrics["n_estimators"]),
             "max_depth": str(metrics["max_depth"]),
-            "class_weight": str(metrics["class_weight"]),
-            "use_smote": str(use_smote),
+            "learning_rate": str(metrics["learning_rate"]),
             "test_size": 0.2,
             "random_state": 42,
             "number_of_features": int(X_train_proc.shape[1]),
@@ -296,12 +280,12 @@ def train_model(
         # Registry & Promotion logic
         if promote:
             model_uri = f"runs:/{run.info.run_id}/model"
-            reg_model = mlflow.register_model(model_uri=model_uri, name="churn-rf")
+            reg_model = mlflow.register_model(model_uri=model_uri, name="churn-model")
             client = MlflowClient()
             client.set_registered_model_alias(
-                name="churn-rf", alias="champion", version=reg_model.version
+                name="churn-model", alias="champion", version=reg_model.version
             )
-            print(f"\n[Promote] Registered model 'churn-rf' v{reg_model.version} with alias 'champion'.")
+            print(f"\n[Promote] Registered model 'churn-model' v{reg_model.version} with alias 'champion'.")
 
             # Save production artifacts to models/
             os.makedirs(output_dir, exist_ok=True)
@@ -327,11 +311,6 @@ def train_model(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train customer churn prediction model.")
     parser.add_argument(
-        "--smote",
-        action="store_true",
-        help="Train with SMOTE oversampling instead of class_weight='balanced'",
-    )
-    parser.add_argument(
         "--db-path",
         default="data/churn.db",
         help="Path to SQLite database",
@@ -353,6 +332,5 @@ if __name__ == "__main__":
     train_model(
         db_path=args.db_path,
         output_dir=args.output_dir,
-        use_smote=args.smote,
         promote=args.promote,
     )

@@ -1,11 +1,7 @@
 """
 Benchmarking and experiment runner for Customer Churn Analytics.
 Runs comparable model variants on the exact same train/test split:
-1. RF Balanced (n_estimators=300, max_depth=12, class_weight='balanced')
-2. RF SMOTE (n_estimators=300, max_depth=12, SMOTE oversampling)
-3. RF Balanced (max_depth=8)
-4. RF Balanced (max_depth=16)
-5. Logistic Regression (class_weight='balanced', max_iter=1000)
+HistGradientBoosting at several depths and learning rates, Random Forest, and Logistic Regression.
 
 Computes 5-fold Stratified CV AUC on the training split only (leakage-free),
 evaluates once on untouched test data, and logs all runs to MLflow under 'churn-2.0'.
@@ -25,14 +21,12 @@ import mlflow
 import mlflow.sklearn
 import numpy as np
 import pandas as pd
-from imblearn.over_sampling import SMOTE
-from imblearn.pipeline import Pipeline as ImbPipeline
 from mlflow.models import infer_signature
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import StratifiedKFold
-from sklearn.pipeline import Pipeline as SkPipeline
+from sklearn.pipeline import Pipeline
 
 # Ensure project root is in sys.path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -53,14 +47,12 @@ def compute_cv_auc(
     model_builder: Callable[[], Any],
     X_train: pd.DataFrame,
     y_train: pd.Series,
-    use_smote: bool = False,
     n_splits: int = 5,
     random_state: int = 42,
 ) -> Tuple[float, float]:
     """
     Computes 5-fold stratified CV AUC strictly on the training split.
-    Refits a fresh ColumnTransformer preprocessor (and SMOTE where used)
-    inside each fold to ensure zero data leakage.
+    Refits a fresh ColumnTransformer preprocessor inside each fold to ensure zero data leakage.
     """
     skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_state)
     fold_aucs: List[float] = []
@@ -71,19 +63,10 @@ def compute_cv_auc(
 
         # Fresh preprocessor constructed for this specific training fold
         preprocessor, _ = build_preprocessor(X_tr)
-        classifier = model_builder()
-
-        if use_smote:
-            pipeline = ImbPipeline([
-                ("preprocessor", preprocessor),
-                ("smote", SMOTE(random_state=random_state)),
-                ("classifier", classifier),
-            ])
-        else:
-            pipeline = SkPipeline([
-                ("preprocessor", preprocessor),
-                ("classifier", classifier),
-            ])
+        pipeline = Pipeline([
+            ("preprocessor", preprocessor),
+            ("classifier", model_builder()),
+        ])
 
         pipeline.fit(X_tr, y_tr)
         val_probs = pipeline.predict_proba(X_val)[:, 1]
@@ -98,7 +81,6 @@ def compute_cv_auc(
 def run_single_experiment(
     variant_name: str,
     model_builder: Callable[[], Any],
-    use_smote: bool,
     params: Dict[str, Any],
     X_train_raw: pd.DataFrame,
     y_train: pd.Series,
@@ -119,19 +101,13 @@ def run_single_experiment(
         model_builder=model_builder,
         X_train=X_train_raw,
         y_train=y_train,
-        use_smote=use_smote,
     )
     print(f"     CV AUC: {cv_mean:.4f} (+/- {cv_std:.4f})")
 
     # 2. Fit final model on full training split
     print("     Fitting final model on full training set...")
     model = model_builder()
-    if use_smote:
-        smote = SMOTE(random_state=42)
-        X_fit, y_fit = smote.fit_resample(X_train_proc, y_train)
-        model.fit(X_fit, y_fit)
-    else:
-        model.fit(X_train_proc, y_train)
+    model.fit(X_train_proc, y_train)
 
     # 3. Evaluate on untouched held-out test data
     print("     Evaluating on untouched test set...")
@@ -212,7 +188,7 @@ def run_all_experiments(
     tracking_uri: Optional[str] = None,
     experiment_name: str = "churn-2.0",
 ) -> List[Dict[str, Any]]:
-    """Runs all 5 comparative model variants on the exact same dataset split."""
+    """Runs all comparative model variants on the exact same dataset split."""
     print("=" * 70)
     print("       STARTING MLFLOW EXPERIMENT BENCHMARK SUITE")
     print("=" * 70)
@@ -225,74 +201,48 @@ def run_all_experiments(
     )
     X_train_proc, X_test_proc, preprocessor_dict = build_features(X_train_raw, X_test_raw)
 
+    def hgb(max_iter: int, max_depth: Optional[int], learning_rate: float) -> Dict[str, Any]:
+        return {
+            "name": f"HistGB (iter={max_iter}, depth={max_depth}, lr={learning_rate})",
+            "builder": lambda: HistGradientBoostingClassifier(
+                max_iter=max_iter, max_depth=max_depth, learning_rate=learning_rate, random_state=42
+            ),
+            "params": {
+                "model_type": "hist_gradient_boosting",
+                "n_estimators": max_iter,
+                "max_depth": max_depth,
+                "learning_rate": learning_rate,
+            },
+        }
+
+    def forest(max_depth: int) -> Dict[str, Any]:
+        return {
+            "name": f"RF Balanced (depth={max_depth})",
+            "builder": lambda: RandomForestClassifier(
+                n_estimators=300, max_depth=max_depth, class_weight="balanced", random_state=42, n_jobs=-1
+            ),
+            "params": {
+                "model_type": "rf_balanced",
+                "n_estimators": 300,
+                "max_depth": max_depth,
+                "class_weight": "balanced",
+            },
+        }
+
     variants = [
-        {
-            "name": "RF Balanced (depth=12, default)",
-            "builder": lambda: RandomForestClassifier(
-                n_estimators=300, max_depth=12, class_weight="balanced", random_state=42, n_jobs=-1
-            ),
-            "use_smote": False,
-            "params": {
-                "model_type": "rf_balanced",
-                "n_estimators": 300,
-                "max_depth": 12,
-                "class_weight": "balanced",
-                "use_smote": False,
-            },
-        },
-        {
-            "name": "RF SMOTE (depth=12)",
-            "builder": lambda: RandomForestClassifier(
-                n_estimators=300, max_depth=12, random_state=42, n_jobs=-1
-            ),
-            "use_smote": True,
-            "params": {
-                "model_type": "rf_smote",
-                "n_estimators": 300,
-                "max_depth": 12,
-                "class_weight": "None (SMOTE)",
-                "use_smote": True,
-            },
-        },
-        {
-            "name": "RF Balanced (depth=8)",
-            "builder": lambda: RandomForestClassifier(
-                n_estimators=300, max_depth=8, class_weight="balanced", random_state=42, n_jobs=-1
-            ),
-            "use_smote": False,
-            "params": {
-                "model_type": "rf_balanced",
-                "n_estimators": 300,
-                "max_depth": 8,
-                "class_weight": "balanced",
-                "use_smote": False,
-            },
-        },
-        {
-            "name": "RF Balanced (depth=16)",
-            "builder": lambda: RandomForestClassifier(
-                n_estimators=300, max_depth=16, class_weight="balanced", random_state=42, n_jobs=-1
-            ),
-            "use_smote": False,
-            "params": {
-                "model_type": "rf_balanced",
-                "n_estimators": 300,
-                "max_depth": 16,
-                "class_weight": "balanced",
-                "use_smote": False,
-            },
-        },
+        hgb(100, None, 0.1),
+        hgb(300, 6, 0.05),
+        hgb(500, 4, 0.05),
+        hgb(600, 3, 0.05),
+        forest(8),
+        forest(16),
         {
             "name": "Logistic Regression (balanced)",
-            "builder": lambda: LogisticRegression(
-                class_weight="balanced", max_iter=1000, random_state=42
-            ),
-            "use_smote": False,
+            "builder": lambda: LogisticRegression(class_weight="balanced", max_iter=1000, random_state=42),
             "params": {
                 "model_type": "logistic_regression",
                 "class_weight": "balanced",
                 "max_iter": 1000,
-                "use_smote": False,
             },
         },
     ]
@@ -302,7 +252,6 @@ def run_all_experiments(
         res = run_single_experiment(
             variant_name=var["name"],
             model_builder=var["builder"],
-            use_smote=var["use_smote"],
             params=var["params"],
             X_train_raw=X_train_raw,
             y_train=y_train,

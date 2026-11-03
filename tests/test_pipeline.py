@@ -9,20 +9,35 @@ import pandas as pd
 import pytest
 
 from src import data_ingest
-from src.preprocess import build_features, load_data, split_data, transform_new
+from src.preprocess import MISSING_CATEGORY, build_features, load_data, split_data, transform_new
+from src.schema import MODEL_FEATURES
 
 
-def test_ingest_stores_numeric_columns_as_numbers(tmp_path, monkeypatch):
-    """Rebuilding the database must store tenure and senior_citizen as integers, not raw bytes."""
+def test_ingest_loads_every_row_with_real_types(tmp_path, monkeypatch):
+    """Rebuilding the database must keep all rows and store numbers as numbers, not raw bytes."""
     db_path = tmp_path / "churn.db"
     monkeypatch.setattr(data_ingest, "DB_PATH", str(db_path))
     data_ingest.create_database()
-    data_ingest.insert_data()
 
     conn = sqlite3.connect(db_path)
-    types = conn.execute("SELECT DISTINCT typeof(tenure), typeof(senior_citizen) FROM customers").fetchall()
+    rows = conn.execute("SELECT COUNT(*) FROM customers").fetchone()[0]
+    types = conn.execute("SELECT DISTINCT typeof(months), typeof(churn) FROM customers").fetchall()
+    churn_values = conn.execute("SELECT DISTINCT churn FROM customers ORDER BY churn").fetchall()
     conn.close()
+
+    assert rows == 100_000
     assert types == [("integer", "integer")]
+    assert churn_values == [(0,), (1,)]
+
+
+def test_model_features_exclude_demographics_and_identifiers():
+    """Fairness rule: demographic and household columns must never reach the model."""
+    excluded = {
+        "ethnic", "marital", "income", "kid0_2", "kid3_5", "kid6_10", "kid11_15", "kid16_17", "adults",
+        "HHstatin", "dwlltype", "dwllsize", "ownrent", "lor", "numbcars", "infobase", "forgntvl", "truck",
+        "rv", "creditcd", "prizm_social_one", "Customer_ID", "churn",
+    }
+    assert not excluded & set(MODEL_FEATURES)
 
 
 @pytest.fixture(scope="module")
@@ -83,16 +98,17 @@ def test_scaler_fit_on_train_only(raw_dataset, split_dataset, processed_dataset)
             err_msg=f"Scaler scale for {col} does not match X_train std."
         )
 
-    # Verify these differ from full-dataset values (leakage check)
+    # Leakage check: the fitted values must sit closer to the train values than to the full-dataset values.
+    # A fixed tolerance cannot work here: on 100,000 rows the two sets of values are almost identical.
     for i, col in enumerate(num_cols):
+        median_val = imputer.statistics_[i]
+        train_series = X_train[col].fillna(median_val)
         full_series = raw_dataset[col].fillna(raw_dataset[col].median())
-        full_mean = full_series.mean()
-        full_std = full_series.std(ddof=0)
-        assert not np.isclose(scaler.mean_[i], full_mean, atol=1e-4), (
-            f"Scaler mean for {col} unexpectedly equals full dataset mean."
+        assert abs(scaler.mean_[i] - train_series.mean()) < abs(scaler.mean_[i] - full_series.mean()), (
+            f"Scaler mean for {col} is closer to the full dataset than to the training data."
         )
-        assert not np.isclose(scaler.scale_[i], full_std, atol=1e-4), (
-            f"Scaler scale for {col} unexpectedly equals full dataset std."
+        assert abs(scaler.scale_[i] - train_series.std(ddof=0)) < abs(scaler.scale_[i] - full_series.std(ddof=0)), (
+            f"Scaler scale for {col} is closer to the full dataset than to the training data."
         )
 
 
@@ -203,27 +219,7 @@ def test_transform_new_with_unseen_and_rare_categories(processed_dataset):
     """
     _, _, artifacts = processed_dataset
 
-    unseen_row = pd.DataFrame([{
-        "gender": "NonBinary",
-        "senior_citizen": 1,
-        "partner": "Unknown",
-        "dependents": "Maybe",
-        "tenure": 18,
-        "contract": "Three year",
-        "paperless_billing": "Fax",
-        "payment_method": "Crypto",
-        "monthly_charges": 65.5,
-        "total_charges": 1179.0,
-        "phone_service": "VoIP",
-        "multiple_lines": "Three+",
-        "internet_service": "Starlink",
-        "online_security": "ThirdParty",
-        "online_backup": "Cloud",
-        "device_protection": "Warranty",
-        "tech_support": "Premium",
-        "streaming_tv": "4K",
-        "streaming_movies": "IMAX"
-    }])
+    unseen_row = pd.DataFrame([{**dict.fromkeys(MODEL_FEATURES, 1.0), "asl_flag": "Never seen"}])
 
     transformed = transform_new(unseen_row, artifacts)
 
@@ -233,10 +229,23 @@ def test_transform_new_with_unseen_and_rare_categories(processed_dataset):
     assert transformed.isna().sum().sum() == 0
 
 
+def test_missing_values_transform_the_same_as_training(split_dataset, processed_dataset):
+    """A gap at inference must be encoded like a gap in training, not as a new unknown text value."""
+    _, X_test, _, _ = split_dataset
+    _, _, artifacts = processed_dataset
+    row = X_test.iloc[[0]]
+
+    with_gap = transform_new(row.assign(asl_flag=None, months=None), artifacts)
+    labelled = transform_new(row.assign(asl_flag=MISSING_CATEGORY, months=np.nan), artifacts)
+
+    pd.testing.assert_frame_equal(with_gap, labelled)
+    assert with_gap.isna().sum().sum() == 0
+
+
 def test_raw_field_coverage(processed_dataset):
     """
     Verifies that the set of raw feature names recovered from the fitted preprocessor
-    equals exactly the 19 raw input fields, and every transformed column maps to
+    equals exactly the model input fields, and every transformed column maps to
     exactly one raw feature (longest-matching raw column name, not first prefix match).
     """
     _, _, artifacts = processed_dataset
@@ -245,7 +254,7 @@ def test_raw_field_coverage(processed_dataset):
     # Load raw columns (excluding target)
     df = load_data("data/churn.db")
     raw_cols = [c for c in df.columns if c != "churn"]
-    assert len(raw_cols) == 19, f"Expected 19 raw fields, got {len(raw_cols)}: {raw_cols}"
+    assert raw_cols == MODEL_FEATURES
 
     # Map each transformed column to its raw field using longest-match
     raw_from_transformed = set()
@@ -271,7 +280,7 @@ def test_raw_field_coverage(processed_dataset):
         raw_from_transformed.add(raw_name)
         mapping[fname] = raw_name
 
-    # All 19 raw fields must be covered
+    # All raw fields must be covered
     missing = set(raw_cols) - raw_from_transformed
     assert not missing, f"Missing raw fields in transformed features: {sorted(missing)}"
 

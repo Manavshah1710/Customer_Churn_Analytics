@@ -41,7 +41,6 @@ def test_mlflow_fast_run_creates_expected_params_metrics_artifacts(
     model, preprocessor, metrics = train_model(
         db_path="data/churn.db",
         output_dir=str(output_dir),
-        use_smote=False,
         promote=False,
         tracking_uri=test_tracking_uri,
         experiment_name="churn-2.0",
@@ -63,8 +62,7 @@ def test_mlflow_fast_run_creates_expected_params_metrics_artifacts(
         "model_type",
         "n_estimators",
         "max_depth",
-        "class_weight",
-        "use_smote",
+        "learning_rate",
         "test_size",
         "random_state",
         "number_of_features",
@@ -116,7 +114,7 @@ def test_mlflow_promotion_registers_champion(
 ) -> None:
     """
     Verifies that when promote=True:
-    1. The model is registered as 'churn-rf'.
+    1. The model is registered as 'churn-model'.
     2. The 'champion' alias is assigned to the registered version.
     3. Production artifacts (churn_model.pkl, preprocessor.pkl, metrics.json) are written to output_dir.
     """
@@ -126,7 +124,6 @@ def test_mlflow_promotion_registers_champion(
     model, preprocessor, metrics = train_model(
         db_path="data/churn.db",
         output_dir=str(output_dir),
-        use_smote=False,
         promote=True,
         tracking_uri=test_tracking_uri,
         experiment_name="churn-2.0",
@@ -137,9 +134,9 @@ def test_mlflow_promotion_registers_champion(
     client = MlflowClient(tracking_uri=test_tracking_uri)
 
     # Verify model registry & alias
-    champion_model = client.get_model_version_by_alias(name="churn-rf", alias="champion")
-    assert champion_model is not None, "Model alias 'champion' not found on 'churn-rf'."
-    assert champion_model.name == "churn-rf"
+    champion_model = client.get_model_version_by_alias(name="churn-model", alias="champion")
+    assert champion_model is not None, "Model alias 'champion' not found on 'churn-model'."
+    assert champion_model.name == "churn-model"
 
     # Verify production files written
     assert (output_dir / "churn_model.pkl").exists()

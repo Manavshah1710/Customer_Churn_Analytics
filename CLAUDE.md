@@ -34,7 +34,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - matplotlib==3.8.3
 - seaborn==0.13.2
 - joblib==1.3.2
-- imbalanced-learn==0.14.2
 - pytest==9.1.1
 - mlflow==2.14.3
 - evidently==0.7.23
