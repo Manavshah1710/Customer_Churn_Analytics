@@ -21,7 +21,7 @@ st.caption(
 
 st.markdown("---")
 
-st.info("⬅ Use the sidebar to navigate between Dashboard, Predictions, Insights, Model Info, and About pages.")
+st.info("⬅ Use the sidebar to navigate between Dashboard, Predictions, Insights, Model Info, About, and Monitoring pages.")
 
 # --------------------------------
 # 3️⃣ FOOTER (OPTIONAL, CLEAN)

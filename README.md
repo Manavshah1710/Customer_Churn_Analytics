@@ -67,7 +67,13 @@ This platform bridges the gap between raw subscriber databases and retention ope
 
 5. **Universal Application Shell (`app.py`)**
    - Polished, responsive design with a dark theme set in `.streamlit/config.toml`, and shared page styles in `src/ui.py`.
-   - Clean sidebar navigation across all 5 sub-pages.
+   - Clean sidebar navigation across all 6 sub-pages.
+
+6. **Data Drift Monitoring (`6_Monitoring.py`, `src/monitoring.py`)**
+   - Every `/predict` call is logged to `data/predictions.db`, then compared with the training data using Evidently AI.
+   - Alerts when 3 or more columns drift, using the latest 1,000 predictions and only with at least 200, because smaller samples gave false alarms on healthy data.
+   - The healthy baseline and simulated drift modes show the check separating the two; this static dataset has no real drift.
+   - `python -m src.monitoring` saves an HTML report and exits 1 on an alert, so it can run on a schedule.
 
 ---
 
@@ -217,12 +223,15 @@ Customer_Churn_Analytics/
 │   ├── 2_Predict_Churn.py      # Real-time customer churn prediction calculator
 │   ├── 3_Insights.py           # Feature analysis and business risk drivers
 │   ├── 4_Model_Info.py         # Production model metrics & feature importance
-│   └── 5_About.py              # Business problem, architecture & solution overview
+│   ├── 5_About.py              # Business problem, architecture & solution overview
+│   └── 6_Monitoring.py         # Data drift check with a threshold alert
 │
 ├── src/
 │   ├── __init__.py             # Exports PROJECT_ROOT path helper
 │   ├── data_ingest.py          # CSV-to-SQLite bulk database ingestion
+│   ├── monitoring.py           # Evidently drift check, CLI and alert rule
 │   ├── predict.py              # Inference module with LRU artifact caching
+│   ├── prediction_log.py       # Stores each API prediction for monitoring
 │   ├── preprocess.py           # Preprocessing pipeline & ColumnTransformer
 │   ├── sql_schema.sql          # Relational DDL for SQLite database
 │   ├── train.py                # CLI model training & evaluation pipeline

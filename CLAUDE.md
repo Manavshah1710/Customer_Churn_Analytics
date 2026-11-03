@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Folder Structure & Purpose
 - `app.py` — Streamlit multipage app entry point (navigation shell)
-- `pages/` — Streamlit pages: 1_Dashboard.py, 2_Predict_Churn.py, 3_Insights.py, 4_Model_Info.py, 5_About.py
+- `pages/` — Streamlit pages: 1_Dashboard.py, 2_Predict_Churn.py, 3_Insights.py, 4_Model_Info.py, 5_About.py, 6_Monitoring.py
 - `src/` — Reusable logic:
   - `preprocess.py` (data loading, stratified split, ColumnTransformer feature engineering)
   - `train.py` (RandomForest training, evaluation metrics, threshold calculation, MLflow tracking)
@@ -18,8 +18,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - `data_ingest.py` (DB creation/load), `sql_schema.sql` (DDL)
   - `ui.py` (`apply_page_style()`: page config and CSS, call first on every page)
   - `prediction_log.py` (appends each `/predict` call to `data/predictions.db`; set `PREDICTION_LOG_PATH` to move it)
+  - `monitoring.py` (Evidently drift check against the training data; alert rule and CLI)
 - `models/` — ML artifacts: `churn_model.pkl`, `preprocessor.pkl` (ColumnTransformer), `metrics.json`
-- `tests/` — Test suite: `test_pipeline.py` (unit/leakage tests), `test_predict.py` (inference), `test_app.py` (Streamlit AppTest), `test_mlflow.py` (MLflow tracking & registry), `test_proxy.py` (failover proxy)
+- `tests/` — Test suite: `test_pipeline.py` (unit/leakage tests), `test_predict.py` (inference), `test_app.py` (Streamlit AppTest), `test_mlflow.py` (MLflow tracking & registry), `test_proxy.py` (failover proxy), `test_monitoring.py` (drift check and log reader)
 - `data/` — SQLite DB (`churn.db`), raw CSV in `data/raw/`
 - `notebooks/` — EDA (`01_EDA.ipynb`), model training (`02_Model_Training.ipynb`)
 - `docs/` — `project_definition.md` (business context)
@@ -36,6 +37,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - imbalanced-learn==0.14.2
 - pytest==9.1.1
 - mlflow==2.14.3
+- evidently==0.7.23
 - shap==0.46.0
 - fastapi==0.162.0
 - uvicorn==0.54.0
@@ -53,10 +55,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Initialize DB**: `python src/data_ingest.py` (creates/loads churn.db)
 - **Run API in Docker**: `docker build -t churn-api .` then `docker run -p 8000:8000 -v churn-log:/app/data churn-api` (the volume keeps the prediction log)
 - **Smoke test a running API**: `python scripts/smoke_test.py [base_url]`
+- **Check for drift**: `python -m src.monitoring` (saves `evidently_report.html`, exits 1 on an alert)
 
 ## Working Rules
 - **Use .venv**: Run commands with the `.venv` python (Python 3.12, scikit-learn 1.4.2) to match serialized artifacts.
-- **Dependencies**: anything `api/` or `src/` needs at runtime goes in `requirements-api.txt` (the Docker image installs only this); tools and Streamlit go in `requirements.txt`.
+- **Dependencies**: anything `api/` or `src/` needs at runtime goes in `requirements-api.txt` (the Docker image installs only this); tools and Streamlit go in `requirements.txt`. Install with `-r requirements.txt`: running `pip install evidently` alone upgrades protobuf and breaks Streamlit and MLflow.
 - **Never modify/delete** in `data/raw/` (source data immutability).
 - **Put reusable logic in `src/`**, not in notebooks or Streamlit pages.
 - **Preprocess format**: `preprocessor.pkl` stores a fitted `ColumnTransformer` with `set_output(transform="pandas")`.

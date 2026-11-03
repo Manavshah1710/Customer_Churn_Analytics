@@ -95,6 +95,21 @@ def test_model_info_page_loads(default_timeout):
     assert not at.exception, f"Model Info page raised exception: {at.exception}"
 
 
+def test_monitoring_page_separates_healthy_data_from_drift():
+    """With no log it asks for more data; the healthy baseline passes and simulated drift alerts."""
+    at = AppTest.from_file("pages/6_Monitoring.py", default_timeout=120).run()
+    assert not at.exception, f"Monitoring page failed to load: {at.exception}"
+    assert len(at.info) == 1 and not at.error
+
+    at.radio[0].set_value("Held-out test set (healthy baseline)").run()
+    assert not at.exception, f"Monitoring page raised exception: {at.exception}"
+    assert len(at.success) == 1 and not at.error
+
+    at.radio[0].set_value("Simulated drift (demo)").run()
+    assert not at.exception, f"Monitoring page raised exception: {at.exception}"
+    assert len(at.error) == 1 and "tenure" in at.error[0].value
+
+
 def test_about_page_loads(default_timeout):
     """Verifies that pages/5_About.py loads documentation without exceptions."""
     at = AppTest.from_file("pages/5_About.py", default_timeout=default_timeout).run()
