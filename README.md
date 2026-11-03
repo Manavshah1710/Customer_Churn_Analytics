@@ -1,4 +1,4 @@
-# 📊 Customer Churn Analytics Platform
+# 📊 Customer Churn Analytics
 
 [![Python](https://img.shields.io/badge/Python-3.12-blue.svg?logo=python&logoColor=white)](https://www.python.org/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.32.0-FF4B4B.svg?logo=streamlit&logoColor=white)](https://streamlit.io/)
@@ -26,7 +26,6 @@ An end-to-end Machine Learning and Business Intelligence solution designed to pr
   - [Model Training](#model-training)
   - [Running the Streamlit Web Application](#running-the-streamlit-web-application)
   - [Running Tests](#running-tests)
-- [Developer Tooling & Failover Proxy](#-developer-tooling--failover-proxy)
 - [Roadmap (Churn 2.0)](#-roadmap-churn-20)
 
 ---
@@ -35,7 +34,7 @@ An end-to-end Machine Learning and Business Intelligence solution designed to pr
 
 Customer retention is significantly more cost-effective than customer acquisition (5–7× cheaper on average). For subscription businesses, losing customers directly erodes recurring monthly revenue (MRR), lifetime value (LTV), and market share.
 
-This platform bridges the gap between raw subscriber databases and retention operations:
+This project bridges the gap between raw subscriber databases and retention operations:
 - **Identifies At-Risk Customers Early**: Uses a Random Forest classifier optimized for high recall to minimize undetected churn.
 - **Dynamic Decile Risk Stratification**: Empirically segments customers into High (top 10%), Moderate (top 30%), and Low risk tiers based on test-set distributions.
 - **Explains Why Customers Churn**: Surfaces key risk drivers such as contract duration, payment method, tenure, and technical support add-ons.
@@ -151,8 +150,6 @@ Here is a summary of all major refactoring and enhancements implemented up to th
 - Safely archived legacy v1 artifacts into `models/archive_v1/` (`churn_model_v1.pkl`, `scaler_v1.pkl`, `feature_columns_v1.pkl`) and v2 artifacts into `models/archive_v2/`.
 - Production bundle in `models/` now consists of clean, standardized files: `churn_model.pkl`, `preprocessor.pkl`, and `metrics.json`.
 
-### 7. Developer Tooling & LLM Proxy
-- Built `claude_proxy.py` and `launch_claude.bat`: A resilient local failover proxy that automatically catches OpenRouter HTTP 429 rate limit errors and rotates across backup models and API keys for uninterrupted development.
 
 ---
 
@@ -193,8 +190,6 @@ Instead of an arbitrary 0.50 threshold, risk tiers are derived from the model's 
 ```
 Customer_Churn_Analytics/
 ├── app.py                      # Streamlit application entry point
-├── claude_proxy.py             # Local resilient OpenRouter failover proxy
-├── launch_claude.bat           # Batch launcher for development environment
 ├── requirements.txt            # Python dependencies (Streamlit, Scikit-learn, etc.)
 ├── CLAUDE.md                   # Agent working guidelines and repository context
 ├── README.md                   # Complete project documentation and status
@@ -359,18 +354,10 @@ pytest tests/
 
 ---
 
-## 🛡️ Developer Tooling & Failover Proxy
-
-The project includes custom tooling for continuous AI pair-programming:
-- **`claude_proxy.py`**: A multi-account reverse proxy for OpenRouter that routes Anthropic-compatible API calls through a cascading pool of models. If an active key hits an HTTP 429 rate limit, the proxy switches upstream endpoints without dropping your session.
-- **`launch_claude.bat`**: One-click startup script that points Claude Code at the proxy for that window only, starts the proxy in the background, and launches Claude Code.
-
----
-
 ## 🔮 Roadmap (Churn 2.0)
 
 - [ ] **SHAP Explainability Integration**: Individual waterfall and beeswarm plots directly inside the Streamlit prediction view to explain per-customer risk drivers.
-- [ ] **LLM Retention Copilot**: Connect the Claude API / OpenRouter proxy to generate customer-tailored retention offers and scripts.
+- [ ] **LLM Retention Copilot**: Connect the Claude API to generate customer-tailored retention offers and scripts.
 - [ ] **FastAPI Microservice (`api/main.py`)**: Standalone REST API with OpenAPI documentation for automated batch and webhook inference.
 - [ ] **Docker Containerization**: Multi-stage `Dockerfile` and `docker-compose.yml` for unified deployment.
 - [ ] **CI/CD Automation**: GitHub Actions workflow for linting, automated testing, and model regression checks.

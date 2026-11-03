@@ -13,5 +13,3 @@ notebooks
 pages
 tests
 **/__pycache__
-claude_proxy.py
-launch_claude.bat

@@ -12,7 +12,7 @@ def apply_page_style() -> None:
     Colors come from the theme in .streamlit/config.toml.
     """
     st.set_page_config(
-        page_title="Customer Churn Analytics Platform",
+        page_title="Customer Churn Analytics",
         page_icon="📊",
         layout="wide",
         initial_sidebar_state="expanded",

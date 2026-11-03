@@ -14,7 +14,7 @@ apply_page_style()
 # --------------------------------
 # 2️⃣ MAIN LANDING CONTENT
 # --------------------------------
-st.title("📊 Customer Churn Analytics Platform")
+st.title("📊 Customer Churn Analytics")
 st.caption(
     "An end-to-end data science application for churn prediction, insights, and business intelligence."
 )
@@ -37,7 +37,7 @@ st.markdown(
         text-align:center;
     ">
         <small>
-        © 2026 Customer Churn Analytics Platform • Production-Ready ML Solution
+        © 2026 Customer Churn Analytics • Portfolio Project
         </small>
     </div>
     """,

@@ -14,7 +14,7 @@ apply_page_style()
 st.markdown("""
 <h2 style="margin-bottom:6px;">About This Project</h2>
 <p style="color:#64748b; margin-top:0;">
-End-to-end customer churn analytics platform designed for real-world business impact
+End-to-end customer churn analytics portfolio project
 </p>
 """, unsafe_allow_html=True)
 
@@ -27,12 +27,12 @@ st.markdown("""
 <p style="font-size:16px; line-height:1.7;">
 Customer churn is one of the most critical challenges for subscription-based businesses.
 Acquiring new customers is significantly more expensive than retaining existing ones.
-This project focuses on building a <b>production-ready churn prediction system</b>
+This project focuses on building a <b>end-to-end churn prediction system</b>
 that enables businesses to identify at-risk customers early and take proactive retention actions.
 </p>
 
 <p style="font-size:16px; line-height:1.7;">
-The platform integrates <b>data engineering, machine learning, analytics, and modern UI design</b>
+The project integrates <b>data engineering, machine learning, analytics, and modern UI design</b>
 into a single application that supports both operational and strategic decision-making.
 </p>
 </div>
